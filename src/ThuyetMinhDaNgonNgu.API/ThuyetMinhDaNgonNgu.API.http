@@ -1,0 +1,49 @@
+@ThuyetMinhDaNgonNgu_HostAddress = https://localhost:7138
+
+### Lấy danh sách địa điểm
+GET {{ThuyetMinhDaNgonNgu_HostAddress}}/api/locations
+Accept: application/json
+
+### Lấy thông tin địa điểm có mã 1
+GET {{ThuyetMinhDaNgonNgu_HostAddress}}/api/locations/1
+Accept: application/json
+
+### Lấy danh sách ngôn ngữ
+GET {{ThuyetMinhDaNgonNgu_HostAddress}}/api/languages
+Accept: application/json
+
+### Thêm ngôn ngữ tiếng Tây Ban Nha, sau đó gọi GET để kiểm tra
+POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/languages
+Content-Type: application/json
+
+{
+  "code": "es",
+  "name": "Español"
+}
+
+### Tạo thuyết minh mô phỏng bằng tiếng Anh
+POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations
+Content-Type: application/json
+
+{
+  "locationId": 1,
+  "languageCode": "en"
+}
+
+### Kiểm tra lỗi: địa điểm không tồn tại (dự kiến 404)
+POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations
+Content-Type: application/json
+
+{
+  "locationId": 999,
+  "languageCode": "en"
+}
+
+### Kiểm tra lỗi: ngôn ngữ chưa hỗ trợ (dự kiến 400)
+POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations
+Content-Type: application/json
+
+{
+  "locationId": 1,
+  "languageCode": "fr"
+}

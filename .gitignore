@@ -1,0 +1,19 @@
+# Build output
+**/bin/
+**/obj/
+.vs/
+
+# User-specific files
+*.user
+*.suo
+
+# SQLite database and journal files
+src/ThuyetMinhDaNgonNgu.API/App_Data/*.db
+src/ThuyetMinhDaNgonNgu.API/App_Data/*.db-shm
+src/ThuyetMinhDaNgonNgu.API/App_Data/*.db-wal
+
+# Secrets and local environment settings
+.env
+.env.*
+!.env.example
+secrets.json
