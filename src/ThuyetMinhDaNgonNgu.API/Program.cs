@@ -50,8 +50,7 @@ builder.Services.AddHttpClient<IAudioNarrationProvider, GeminiAudioProvider>(cli
 {
     client.Timeout = TimeSpan.FromMinutes(3);
 });
-builder.Services.AddSingleton<ILanguageRepository, InMemoryLanguageRepository>();
-builder.Services.AddSingleton<ILocationRepository, InMemoryLocationRepository>();
+
 var app = builder.Build();
 
 
