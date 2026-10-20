@@ -1,115 +1,1201 @@
-const API_BASE = ""; // Frontend nằm trong wwwroot nên dùng cùng host với API.
+
+"use strict";
+
+// ======================================================
+// 1. CAU HINH VA KHAI BAO CAC THANH PHAN HTML
+// ======================================================
+
+const API_BASE = "";
+const HISTORY_KEY = "vietguide_history_v1";
+const MAX_HISTORY = 50;
+
 const locationSelect = document.getElementById("locationSelect");
 const languageSelect = document.getElementById("languageSelect");
 const locationPreview = document.getElementById("locationPreview");
-const form = document.getElementById("narrationForm");
+const narrationForm = document.getElementById("narrationForm");
 const submitBtn = document.getElementById("submitBtn");
 const errorMessage = document.getElementById("errorMessage");
 const resultSection = document.getElementById("resultSection");
+
+const resultMeta = document.getElementById("resultMeta");
+const resultTitle = document.getElementById("resultTitle");
+const resultText = document.getElementById("resultText");
+const resultStatus = document.getElementById("resultStatus");
+const audioPlayer = document.getElementById("audioPlayer");
+
+const exploreMap = document.getElementById("exploreMap");
+const mapMessage = document.getElementById("mapMessage");
+
+const historyList = document.getElementById("historyList");
+const clearHistoryButton = document.getElementById("clearHistory");
+
 let locations = [];
+let languages = [];
+let vietGuideMap = null;
+
+let featuredMarkers = [];
+
+const featuredPlaces = [
+    {
+        name: "Bảo tàng Hồ Chí Minh - Bến Nhà Rồng",
+        position: [10.7688, 106.7068],
+        description: "Tìm hiểu về cuộc đời và sự nghiệp của Chủ tịch Hồ Chí Minh."
+    },
+    {
+        name: "Công viên Sáng Tạo",
+        position: [10.7725, 106.7256],
+        description: "Không gian công cộng tại khu vực Thủ Thiêm."
+    },
+    {
+        name: "Landmark 81",
+        position: [10.7950, 106.7218],
+        description: "Tòa nhà biểu tượng bên bờ sông Sài Gòn."
+    },
+    {
+        name: "Bitexco Financial Tower",
+        position: [10.7717, 106.7042],
+        description: "Tòa nhà nổi bật tại trung tâm TP.HCM."
+    },
+    {
+        name: "Phố đi bộ Bùi Viện",
+        position: [10.7678, 106.6934],
+        description: "Khu phố sôi động với nhiều hoạt động về đêm."
+    },
+    {
+        name: "Phố đi bộ Nguyễn Huệ",
+        position: [10.7740, 106.7030],
+        description: "Phố đi bộ nổi tiếng ở trung tâm thành phố."
+    },
+    {
+        name: "Bảo tàng Chứng tích Chiến tranh",
+        position: [10.7798, 106.6920],
+        description: "Nơi trưng bày tư liệu và hiện vật lịch sử chiến tranh."
+    },
+    {
+        name: "Bảo tàng Phụ nữ Nam Bộ",
+        position: [10.7900, 106.6900],
+        description: "Tìm hiểu lịch sử và văn hóa phụ nữ Nam Bộ."
+    },
+    {
+        name: "Chợ Bến Thành",
+        position: [10.7725, 106.6980],
+        description: "Địa điểm mua sắm và khám phá ẩm thực nổi tiếng."
+    },
+    {
+    name: "Dinh Độc Lập",
+    position: [10.7770, 106.6953],
+    description: "Di tích lịch sử nổi tiếng, gắn liền với sự kiện ngày 30/4/1975."
+}
+];
+
+
+// ======================================================
+// 2. HAM HO TRO
+// ======================================================
+
+function getFirstValue(object, keys, fallback = "") {
+    if (!object) {
+        return fallback;
+    }
+
+    for (const key of keys) {
+        if (
+            object[key] !== undefined &&
+            object[key] !== null &&
+            object[key] !== ""
+        ) {
+            return object[key];
+        }
+    }
+
+    return fallback;
+}
+
+function getLocationId(location) {
+    return getFirstValue(location, [
+        "id",
+        "locationId",
+        "maDiaDiem",
+        "MaDiaDiem"
+    ]);
+}
+
+function getLocationName(location) {
+    return getFirstValue(location, [
+        "name",
+        "locationName",
+        "tenDiaDiem",
+        "TenDiaDiem",
+        "title"
+    ], "Địa điểm chưa có tên");
+}
+
+function getLanguageCode(language) {
+    return getFirstValue(language, [
+        "code",
+        "languageCode",
+        "maNgonNgu",
+        "MaNgonNgu"
+    ]);
+}
+
+function getLanguageName(language) {
+    return getFirstValue(language, [
+        "name",
+        "languageName",
+        "tenNgonNgu",
+        "TenNgonNgu"
+    ], "Ngôn ngữ");
+}
+
+function getArrayFromResponse(response) {
+    if (Array.isArray(response)) {
+        return response;
+    }
+
+    if (response && Array.isArray(response.data)) {
+        return response.data;
+    }
+
+    if (response && Array.isArray(response.items)) {
+        return response.items;
+    }
+
+    if (response && Array.isArray(response.locations)) {
+        return response.locations;
+    }
+
+    if (response && Array.isArray(response.languages)) {
+        return response.languages;
+    }
+
+    return [];
+}
 
 async function getJson(url, options = {}) {
-  const response = await fetch(`${API_BASE}${url}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options
-  });
-  const data = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(data?.message || `Có lỗi xảy ra (${response.status}).`);
-  return data;
+    const response = await fetch(`${API_BASE}${url}`, {
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+        }
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+    let data;
+
+    if (contentType.includes("application/json")) {
+        data = await response.json();
+    } else {
+        data = await response.text();
+    }
+
+    if (!response.ok) {
+        let message = "Yêu cầu không thành công.";
+
+        if (typeof data === "string" && data.trim()) {
+            message = data;
+        } else if (data && typeof data === "object") {
+            message = data.message || data.error || message;
+        }
+
+        throw new Error(message);
+    }
+
+    return data;
+}
+
+function showError(message) {
+    if (!errorMessage) {
+        console.error(message);
+        return;
+    }
+
+    errorMessage.textContent = message;
+    errorMessage.hidden = false;
+    errorMessage.style.display = "";
+}
+
+function hideError() {
+    if (!errorMessage) {
+        return;
+    }
+
+    errorMessage.textContent = "";
+    errorMessage.hidden = true;
+    errorMessage.style.display = "none";
+}
+
+function setMapMessage(message) {
+    if (mapMessage) {
+        mapMessage.textContent = message;
+    }
+}
+
+function formatDate(dateValue) {
+    if (!dateValue) {
+        return "Không rõ thời gian";
+    }
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+        return "Không rõ thời gian";
+    }
+
+    return date.toLocaleString("vi-VN");
+}
+
+// ======================================================
+// 3. TAI DANH SACH DIA DIEM VA NGON NGU
+// ======================================================
+
+function fillLocationOptions() {
+    if (!locationSelect) {
+        return;
+    }
+
+    locationSelect.replaceChildren();
+
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = "-- Chọn địa điểm --";
+    locationSelect.appendChild(defaultOption);
+
+    locations.forEach((location) => {
+        const id = getLocationId(location);
+
+        if (id === "") {
+            return;
+        }
+
+        const option = document.createElement("option");
+        option.value = String(id);
+        option.textContent = getLocationName(location);
+
+        locationSelect.appendChild(option);
+    });
+}
+
+function fillLanguageOptions() {
+    if (!languageSelect) {
+        return;
+    }
+
+    languageSelect.replaceChildren();
+
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = "-- Chọn ngôn ngữ --";
+    languageSelect.appendChild(defaultOption);
+
+    languages.forEach((language) => {
+        const code = getLanguageCode(language);
+
+        if (code === "") {
+            return;
+        }
+
+        const option = document.createElement("option");
+        option.value = String(code);
+        option.textContent = getLanguageName(language);
+
+        languageSelect.appendChild(option);
+    });
+}
+
+async function loadLocations() {
+    const response = await getJson("/api/locations");
+    locations = getArrayFromResponse(response);
+
+    fillLocationOptions();
+    refreshVietGuideMap();
+
+    return locations;
+}
+
+async function loadLanguages() {
+    const response = await getJson("/api/languages");
+    languages = getArrayFromResponse(response);
+
+    fillLanguageOptions();
+
+    return languages;
 }
 
 async function loadOptions() {
-  try {
-    const [locationData, languageData] = await Promise.all([
-      getJson("/api/locations"),
-      getJson("/api/languages")
+    const results = await Promise.allSettled([
+        loadLocations(),
+        loadLanguages()
     ]);
-    locations = locationData;
-    locationSelect.innerHTML = '<option value="">-- Chọn địa điểm --</option>';
-    locations.forEach(item => {
-      const option = document.createElement("option");
-      option.value = item.id;
-      option.textContent = `${item.name}${item.city ? ` — ${item.city}` : ""}`;
-      locationSelect.appendChild(option);
-    });
-    languageSelect.innerHTML = '<option value="">-- Chọn ngôn ngữ --</option>';
-    languageData.forEach(item => {
-      const option = document.createElement("option");
-      option.value = item.code;
-      option.textContent = item.name;
-      languageSelect.appendChild(option);
-    });
-    if (!locations.length) locationSelect.innerHTML = '<option value="">Chưa có địa điểm</option>';
-    if (!languageData.length) languageSelect.innerHTML = '<option value="">Chưa có ngôn ngữ</option>';
-  } catch (error) {
-    locationSelect.innerHTML = '<option value="">Không tải được địa điểm</option>';
-    languageSelect.innerHTML = '<option value="">Không tải được ngôn ngữ</option>';
-    errorMessage.textContent = `Không kết nối được API. Hãy chạy ứng dụng ASP.NET Core rồi tải lại trang. Chi tiết: ${error.message}`;
-  }
+
+    const locationResult = results[0];
+    const languageResult = results[1];
+
+    if (locationResult.status === "rejected") {
+        console.error("Lỗi tải địa điểm:", locationResult.reason);
+
+        if (locationSelect) {
+            locationSelect.innerHTML =
+                '<option value="">Không tải được địa điểm</option>';
+        }
+
+        setMapMessage(
+            "Không tải được danh sách địa điểm. Hãy kiểm tra API /api/locations."
+        );
+    }
+
+    if (languageResult.status === "rejected") {
+        console.error("Lỗi tải ngôn ngữ:", languageResult.reason);
+
+        if (languageSelect) {
+            languageSelect.innerHTML =
+                '<option value="">Không tải được ngôn ngữ</option>';
+        }
+    }
+
+    if (
+        locationResult.status === "rejected" ||
+        languageResult.status === "rejected"
+    ) {
+        showError(
+            "Không tải được một số dữ liệu. Hãy kiểm tra máy chủ API và thử tải lại trang."
+        );
+    } else {
+        hideError();
+    }
+
+    // Luôn cập nhật bản đồ, kể cả khi API không tải được.
+    refreshVietGuideMap();
 }
 
-locationSelect.addEventListener("change", () => {
-  const selected = locations.find(item => String(item.id) === locationSelect.value);
-  locationPreview.textContent = selected?.description || "Chọn một địa điểm để xem thông tin giới thiệu.";
-});
+// Khi người dùng đổi địa điểm
+if (locationSelect) {
+    locationSelect.addEventListener("change", () => {
+        const selectedLocation = locations.find(
+            (location) =>
+                String(getLocationId(location)) === locationSelect.value
+        );
 
-form.addEventListener("submit", async event => {
-  event.preventDefault();
-  errorMessage.textContent = "";
-  if (!locationSelect.value || !languageSelect.value) {
-    errorMessage.textContent = "Vui lòng chọn địa điểm và ngôn ngữ.";
-    return;
-  }
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = 'Đang tạo nội dung... <span>◌</span>';
-  try {
-    const result = await getJson("/api/narrations", {
-      method: "POST",
-      body: JSON.stringify({
-        locationId: Number(locationSelect.value),
-        languageCode: languageSelect.value
-      })
+        if (locationPreview) {
+            if (selectedLocation) {
+                locationPreview.textContent = getFirstValue(
+                    selectedLocation,
+                    ["description", "descriptionText", "moTa", "MoTa"],
+                    getLocationName(selectedLocation)
+                );
+            } else {
+                locationPreview.textContent = "";
+            }
+        }
     });
-    const selected = locations.find(item => item.id === Number(locationSelect.value));
-    document.getElementById("resultMeta").textContent =
-      `${result.locationName || selected?.name || "ĐỊA ĐIỂM"} · ${result.languageName || languageSelect.options[languageSelect.selectedIndex].text}`.toUpperCase();
-    document.getElementById("resultTitle").textContent = result.locationName || selected?.name || "Nội dung thuyết minh";
-    document.getElementById("resultText").textContent = result.text || "Chưa có nội dung thuyết minh.";
-    document.getElementById("resultStatus").textContent = (result.status || "THUYẾT MINH").replaceAll("-", " ").toUpperCase();
-    const audio = document.getElementById("audioPlayer");
-    if (result.audioUrl) {
-      audio.src = result.audioUrl;
-      audio.hidden = false;
-    } else {
-      audio.removeAttribute("src");
-      audio.hidden = true;
+}
+
+// ======================================================
+// 4. TAO BAI THUYET MINH
+// ======================================================
+
+function displayNarration(item) {
+    if (!item) {
+        return;
     }
-    resultSection.hidden = false;
-    resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
-  } catch (error) {
-    errorMessage.textContent = error.message || "Không thể tạo nội dung thuyết minh. Vui lòng thử lại.";
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = 'Tạo nội dung thuyết minh <span>↗</span>';
-  }
-});
 
-document.getElementById("copyBtn").addEventListener("click", async () => {
-  const text = document.getElementById("resultText").textContent;
-  const button = document.getElementById("copyBtn");
-  try {
-    await navigator.clipboard.writeText(text);
-    button.textContent = "Đã sao chép ✓";
-  } catch {
-    button.textContent = "Không thể sao chép";
-  }
-});
+    const locationName =
+        item.locationName || item.name || "Địa điểm";
 
-document.querySelector(".menu-toggle").addEventListener("click", () => {
-  document.querySelector(".topbar nav").classList.toggle("open");
-});
-document.querySelectorAll(".topbar nav a").forEach(link => link.addEventListener("click", () => {
-  document.querySelector(".topbar nav").classList.remove("open");
-}));
+    const languageName =
+        item.languageName || item.languageCode || "Ngôn ngữ";
 
+    if (resultTitle) {
+        resultTitle.textContent = `Thuyết minh: ${locationName}`;
+    }
+
+    if (resultMeta) {
+        resultMeta.textContent = `Địa điểm: ${locationName} | Ngôn ngữ: ${languageName}`;
+    }
+
+    if (resultText) {
+        resultText.textContent = item.text || "Chưa có nội dung thuyết minh.";
+    }
+
+    if (resultStatus) {
+        resultStatus.textContent = item.status
+            ? `Trạng thái: ${item.status}`
+            : "";
+    }
+
+    if (audioPlayer) {
+        if (item.audioUrl) {
+            audioPlayer.src = item.audioUrl;
+            audioPlayer.hidden = false;
+            audioPlayer.style.display = "";
+
+            if (typeof audioPlayer.load === "function") {
+                audioPlayer.load();
+            }
+        } else {
+            audioPlayer.pause();
+            audioPlayer.removeAttribute("src");
+            audioPlayer.load();
+            audioPlayer.hidden = true;
+            audioPlayer.style.display = "none";
+        }
+    }
+
+    if (resultSection) {
+        resultSection.hidden = false;
+        resultSection.style.display = "";
+    }
+}
+
+if (narrationForm) {
+    narrationForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        hideError();
+
+        const locationId = locationSelect
+            ? locationSelect.value
+            : "";
+
+        const languageCode = languageSelect
+            ? languageSelect.value
+            : "";
+
+        if (!locationId) {
+            showError("Vui lòng chọn địa điểm.");
+            return;
+        }
+
+        if (!languageCode) {
+            showError("Vui lòng chọn ngôn ngữ.");
+            return;
+        }
+
+        const selectedLocation = locations.find(
+            (location) =>
+                String(getLocationId(location)) === String(locationId)
+        );
+
+        const selectedLanguage = languages.find(
+            (language) =>
+                String(getLanguageCode(language)) === String(languageCode)
+        );
+
+        const originalButtonText = submitBtn
+            ? submitBtn.textContent
+            : "";
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Đang tạo thuyết minh...";
+        }
+
+        try {
+            const response = await getJson("/api/narrations", {
+                method: "POST",
+                body: JSON.stringify({
+                    locationId: locationId,
+                    languageCode: languageCode
+                })
+            });
+
+            // Một số API trả dữ liệu trực tiếp, một số trả trong thuộc tính data.
+            const data =
+                response && response.data && typeof response.data === "object"
+                    ? response.data
+                    : response;
+
+            const narration = {
+                locationId: getFirstValue(
+                    data,
+                    ["locationId"],
+                    locationId
+                ),
+                locationName: getFirstValue(
+                    data,
+                    ["locationName", "name"],
+                    selectedLocation
+                        ? getLocationName(selectedLocation)
+                        : "Địa điểm"
+                ),
+                languageCode: getFirstValue(
+                    data,
+                    ["languageCode"],
+                    languageCode
+                ),
+                languageName: getFirstValue(
+                    data,
+                    ["languageName"],
+                    selectedLanguage
+                        ? getLanguageName(selectedLanguage)
+                        : languageCode
+                ),
+                text: getFirstValue(
+                    data,
+                    ["text", "content", "narrationText"],
+                    ""
+                ),
+                status: getFirstValue(data, ["status"], ""),
+                audioUrl: getFirstValue(
+                    data,
+                    ["audioUrl", "audioURL", "audio"],
+                    ""
+                )
+            };
+
+            if (!narration.text) {
+                throw new Error(
+                    "API đã phản hồi nhưng không có nội dung thuyết minh. Hãy kiểm tra dữ liệu trả về của /api/narrations."
+                );
+            }
+
+            narration.createdAt = new Date().toISOString();
+
+            displayNarration(narration);
+            saveNarrationHistory(narration);
+
+            if (resultSection) {
+                resultSection.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+            }
+        } catch (error) {
+            console.error("Lỗi tạo thuyết minh:", error);
+
+            showError(
+                error.message ||
+                "Không thể tạo bài thuyết minh. Hãy kiểm tra kết nối máy chủ."
+            );
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent =
+                    originalButtonText || "Tạo thuyết minh";
+            }
+        }
+    });
+}
+
+// ======================================================
+// 5. SAO CHEP NOI DUNG THUYET MINH
+// ======================================================
+
+async function copyNarrationText() {
+    const text = resultText ? resultText.textContent.trim() : "";
+
+    if (!text) {
+        showError("Chưa có nội dung để sao chép.");
+        return;
+    }
+
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+
+            document.body.appendChild(textArea);
+            textArea.select();
+
+            const copied = document.execCommand("copy");
+            textArea.remove();
+
+            if (!copied) {
+                throw new Error("Không thể sao chép nội dung.");
+            }
+        }
+
+        hideError();
+        alert("Đã sao chép nội dung thuyết minh.");
+    } catch (error) {
+        console.error("Lỗi sao chép:", error);
+        showError("Không thể sao chép. Bạn hãy thử chọn và sao chép thủ công.");
+    }
+}
+
+const copyBtn = document.getElementById("copyBtn");
+
+if (copyBtn) {
+    copyBtn.addEventListener("click", copyNarrationText);
+}
+// ======================================================
+// 6. LUU VA HIEN THI LICH SU THUYET MINH
+// ======================================================
+
+function getNarrationHistory() {
+    try {
+        const saved = localStorage.getItem(HISTORY_KEY);
+
+        if (!saved) {
+            return [];
+        }
+
+        const history = JSON.parse(saved);
+
+        if (!Array.isArray(history)) {
+            return [];
+        }
+
+        return history;
+    } catch (error) {
+        console.error("Không đọc được lịch sử:", error);
+        return [];
+    }
+}
+
+function writeNarrationHistory(history) {
+    try {
+        localStorage.setItem(
+            HISTORY_KEY,
+            JSON.stringify(history.slice(0, MAX_HISTORY))
+        );
+
+        return true;
+    } catch (error) {
+        console.error("Không lưu được lịch sử:", error);
+        showError(
+            "Không lưu được lịch sử trên trình duyệt. Hãy kiểm tra dung lượng hoặc cài đặt lưu trữ."
+        );
+        return false;
+    }
+}
+
+function saveNarrationHistory(item) {
+    const history = getNarrationHistory();
+
+    const savedItem = {
+        ...item,
+        createdAt: item.createdAt || new Date().toISOString()
+    };
+
+    history.unshift(savedItem);
+
+    if (writeNarrationHistory(history)) {
+        renderNarrationHistory();
+    }
+}
+
+function createHistoryButton(text, className, onClick) {
+    const button = document.createElement("button");
+
+    button.type = "button";
+    button.textContent = text;
+    button.className = className;
+    button.addEventListener("click", onClick);
+
+    return button;
+}
+
+function renderNarrationHistory() {
+    if (!historyList) {
+        return;
+    }
+
+    const history = getNarrationHistory();
+
+    historyList.replaceChildren();
+
+    if (history.length === 0) {
+        const emptyMessage = document.createElement("p");
+        emptyMessage.textContent = "Bạn chưa có lịch sử thuyết minh.";
+        historyList.appendChild(emptyMessage);
+        return;
+    }
+
+    history.forEach((item, index) => {
+        const card = document.createElement("div");
+        card.className = "history-card";
+
+        const title = document.createElement("h3");
+        title.textContent = item.locationName || "Địa điểm";
+        card.appendChild(title);
+
+        const meta = document.createElement("p");
+        meta.className = "history-meta";
+        meta.textContent =
+            `${item.languageName || item.languageCode || "Ngôn ngữ"} • ` +
+            formatDate(item.createdAt);
+        card.appendChild(meta);
+
+        const preview = document.createElement("p");
+        preview.className = "history-preview";
+
+        const content = item.text || "";
+        preview.textContent =
+            content.length > 180
+                ? content.substring(0, 180) + "..."
+                : content;
+
+        card.appendChild(preview);
+
+        const actions = document.createElement("div");
+        actions.className = "history-actions";
+
+        const viewButton = createHistoryButton(
+            "Xem lại",
+            "history-view-btn",
+            () => openSavedNarration(item, false)
+        );
+
+        actions.appendChild(viewButton);
+
+        if (item.audioUrl) {
+            const playButton = createHistoryButton(
+                "Nghe lại",
+                "history-play-btn",
+                () => openSavedNarration(item, true)
+            );
+
+            actions.appendChild(playButton);
+        }
+
+        const deleteButton = createHistoryButton(
+            "Xóa",
+            "history-delete-btn",
+            () => deleteNarrationHistory(index)
+        );
+
+        actions.appendChild(deleteButton);
+        card.appendChild(actions);
+        historyList.appendChild(card);
+    });
+}
+
+function openSavedNarration(item, shouldPlay = false) {
+    if (!item) {
+        return;
+    }
+
+    displayNarration(item);
+    hideError();
+
+    if (resultSection) {
+        resultSection.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }
+
+    if (shouldPlay && audioPlayer && item.audioUrl) {
+        audioPlayer.play().catch((error) => {
+            console.error("Không phát được âm thanh:", error);
+            showError(
+                "Không thể phát âm thanh. Hãy kiểm tra đường dẫn audio hoặc thử lại."
+            );
+        });
+    }
+}
+
+function deleteNarrationHistory(index) {
+    const history = getNarrationHistory();
+
+    if (index < 0 || index >= history.length) {
+        return;
+    }
+
+    const confirmed = confirm(
+        "Bạn có chắc muốn xóa bài thuyết minh này khỏi lịch sử?"
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    history.splice(index, 1);
+
+    if (writeNarrationHistory(history)) {
+        renderNarrationHistory();
+    }
+}
+
+if (clearHistoryButton) {
+    clearHistoryButton.addEventListener("click", () => {
+        const history = getNarrationHistory();
+
+        if (history.length === 0) {
+            alert("Lịch sử hiện đang trống.");
+            return;
+        }
+
+        const confirmed = confirm(
+            "Bạn có chắc muốn xóa toàn bộ lịch sử thuyết minh?"
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            localStorage.removeItem(HISTORY_KEY);
+            renderNarrationHistory();
+        } catch (error) {
+            console.error("Lỗi xóa lịch sử:", error);
+            showError("Không thể xóa lịch sử.");
+        }
+    });
+}
+
+// ======================================================
+// 7. KHOI TAO BAN DO LEAFLET
+// ======================================================
+
+
+function initVietGuideMap() {
+    if (!exploreMap) {
+        console.error("Không tìm thấy phần tử #exploreMap trong HTML.");
+        return;
+    }
+
+    if (typeof L === "undefined") {
+        console.error("Leaflet chưa được tải.");
+        return;
+    }
+
+    if (vietGuideMap) return;
+
+    vietGuideMap = L.map(exploreMap, {
+        center: [10.7769, 106.7009],
+        zoom: 11,
+        minZoom: 10,
+        maxZoom: 18,
+        maxBounds: [
+            [10.35, 106.30],
+            [11.20, 107.10]
+        ],
+        maxBoundsViscosity: 0.8
+    });
+
+    L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            attribution:
+                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }
+    ).addTo(vietGuideMap);
+
+    addFeaturedPlaces();
+
+    requestAnimationFrame(() => {
+        vietGuideMap.invalidateSize();
+    });
+}
+
+function getLocationCoordinates(location) {
+    const coordinates = location.coordinates || location.coordinate || {};
+
+    const latitudeValue = getFirstValue(location, [
+        "latitude",
+        "lat",
+        "viDo",
+        "ViDo"
+    ], getFirstValue(coordinates, [
+        "latitude",
+        "lat",
+        "viDo"
+    ], null));
+
+    const longitudeValue = getFirstValue(location, [
+        "longitude",
+        "lng",
+        "lon",
+        "kinhDo",
+        "KinhDo"
+    ], getFirstValue(coordinates, [
+        "longitude",
+        "lng",
+        "lon",
+        "kinhDo"
+    ], null));
+
+    if (
+        latitudeValue !== null &&
+        longitudeValue !== null
+    ) {
+        const latitude = Number(latitudeValue);
+        const longitude = Number(longitudeValue);
+
+        if (
+            Number.isFinite(latitude) &&
+            Number.isFinite(longitude) &&
+            latitude >= -90 &&
+            latitude <= 90 &&
+            longitude >= -180 &&
+            longitude <= 180
+        ) {
+            return [latitude, longitude];
+        }
+    }
+
+    // Tọa độ dự phòng cho một số địa điểm phổ biến.
+    // Nên bổ sung latitude/longitude thật trong dữ liệu API.
+    const name = (
+        getLocationName(location) + " " +
+        getFirstValue(location, ["city", "province", "cityName"], "")
+    ).toLowerCase();
+
+    const knownPlaces = [
+        {
+            keywords: ["hồ chí minh", "ho chi minh", "sài gòn", "saigon"],
+            coordinates: [10.8231, 106.6297]
+        },
+        {
+            keywords: ["hà nội", "ha noi", "hanoi"],
+            coordinates: [21.0278, 105.8342]
+        },
+        {
+            keywords: ["đà nẵng", "da nang", "danang"],
+            coordinates: [16.0544, 108.2022]
+        },
+        {
+            keywords: ["huế", "hue"],
+            coordinates: [16.4637, 107.5909]
+        },
+        {
+            keywords: ["hội an", "hoi an"],
+            coordinates: [15.8801, 108.338]
+        },
+        {
+            keywords: ["đà lạt", "da lat", "dalat"],
+            coordinates: [11.9404, 108.4583]
+        },
+        {
+            keywords: ["phú quốc", "phu quoc"],
+            coordinates: [10.2899, 103.984]
+        },
+        {
+            keywords: ["hạ long", "ha long"],
+            coordinates: [20.9517, 107.0802]
+        },
+        {
+            keywords: ["nha trang"],
+            coordinates: [12.2388, 109.1967]
+        },
+        {
+            keywords: ["cần thơ", "can tho"],
+            coordinates: [10.0452, 105.7469]
+        }
+    ];
+
+    for (const place of knownPlaces) {
+        if (
+            place.keywords.some((keyword) => name.includes(keyword))
+        ) {
+            return place.coordinates;
+        }
+    }
+
+    return null;
+}
+
+function selectVietGuideLocation(location) {
+    if (!location || !locationSelect) {
+        return;
+    }
+
+    const id = getLocationId(location);
+
+    locationSelect.value = String(id);
+
+    // Thông báo cho các listener hiện có khi chọn địa điểm từ bản đồ.
+    locationSelect.dispatchEvent(
+        new Event("change", { bubbles: true })
+    );
+
+    const createSection = document.getElementById("create");
+
+    if (createSection) {
+        createSection.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }
+
+    setMapMessage(
+        `Đã chọn địa điểm: ${getLocationName(location)}. Hãy chọn ngôn ngữ và tạo bài thuyết minh.`
+    );
+}
+
+
+function addFeaturedPlaces() {
+    if (!vietGuideMap || typeof L === "undefined") return;
+    if (featuredMarkers.length > 0) return;
+
+    featuredPlaces.forEach((place) => {
+        const marker = L.marker(place.position).addTo(vietGuideMap);
+
+        const popup = document.createElement("div");
+
+        const title = document.createElement("strong");
+        title.textContent = place.name;
+        popup.appendChild(title);
+
+        const description = document.createElement("p");
+        description.textContent = place.description;
+        popup.appendChild(description);
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Chọn địa điểm";
+        button.style.marginTop = "6px";
+
+        button.addEventListener("click", () => {
+            const normalize = (value) =>
+                String(value || "")
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, " ")
+                    .trim();
+
+            const aliases = {
+                "bao tang ho chi minh ben nha rong": [
+                    "bao tang ho chi minh",
+                    "ben nha rong",
+                    "nha rong"
+                ],
+                "cong vien sang tao": [
+                    "cong vien sang tao"
+                ],
+                "landmark 81": ["landmark 81"],
+                "bitexco financial tower": ["bitexco"],
+                "pho di bo bui vien": ["bui vien"],
+                "pho di bo nguyen hue": ["nguyen hue"],
+                "bao tang chung tich chien tranh": [
+                    "chung tich chien tranh"
+                ],
+                "bao tang phu nu nam bo": [
+                    "bao tang phu nu nam bo"
+                ],
+                "cho ben thanh": ["ben thanh"]
+            };
+
+            const placeKey = normalize(place.name);
+            const keywords = aliases[placeKey] || [placeKey];
+
+            const matchedLocation = locations.find((location) => {
+                const name = normalize(getLocationName(location));
+
+                return keywords.some((keyword) =>
+                    name.includes(normalize(keyword))
+                );
+            });
+
+            if (matchedLocation) {
+                selectVietGuideLocation(matchedLocation);
+            } else {
+                setMapMessage(
+                    `Bạn đã chọn ${place.name}. Địa điểm này chưa có trong danh sách API, nên chưa thể tạo bài thuyết minh cho đến khi được thêm vào dữ liệu.`
+                );
+            }
+
+            marker.closePopup();
+        });
+
+        popup.appendChild(button);
+        marker.bindPopup(popup);
+
+        featuredMarkers.push(marker);
+    });
+}
+
+function refreshVietGuideMap() {
+    if (!vietGuideMap) {
+        initVietGuideMap();
+    }
+
+    if (!vietGuideMap || typeof L === "undefined") {
+        return;
+    }
+
+    // Chỉ xóa ghim từ API, không xóa 9 ghim cố định.
+    vietGuideMarkers.forEach((marker) => {
+        vietGuideMap.removeLayer(marker);
+    });
+
+    vietGuideMarkers = [];
+
+    locations.forEach((location) => {
+        const coordinates = getLocationCoordinates(location);
+
+        if (!coordinates) return;
+
+        // Chỉ hiển thị địa điểm nằm trong vùng bản đồ TP.HCM.
+        const [lat, lng] = coordinates;
+
+        if (
+            lat < 10.35 || lat > 11.20 ||
+            lng < 106.30 || lng > 107.10
+        ) {
+            return;
+        }
+
+        // Tránh đặt ghim API trùng vị trí với ghim cố định.
+        const duplicateFeatured = featuredPlaces.some((place) => {
+            const latDiff = Math.abs(place.position[0] - lat);
+            const lngDiff = Math.abs(place.position[1] - lng);
+
+            return latDiff < 0.0015 && lngDiff < 0.0015;
+        });
+
+        if (duplicateFeatured) return;
+
+        const marker = L.marker(coordinates).addTo(vietGuideMap);
+
+        const popup = document.createElement("div");
+
+        const title = document.createElement("strong");
+        title.textContent = getLocationName(location);
+        popup.appendChild(title);
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Khám phá địa điểm này";
+        button.style.display = "block";
+        button.style.marginTop = "8px";
+
+        button.addEventListener("click", () => {
+            selectVietGuideLocation(location);
+            marker.closePopup();
+        });
+
+        popup.appendChild(button);
+        marker.bindPopup(popup);
+
+        vietGuideMarkers.push(marker);
+    });
+
+    requestAnimationFrame(() => {
+        if (vietGuideMap) {
+            vietGuideMap.invalidateSize();
+        }
+    });
+
+    const totalMarkers = featuredMarkers.length + vietGuideMarkers.length;
+
+    setMapMessage(
+        `Bản đồ TP.HCM có ${featuredMarkers.length} địa điểm nổi bật và ${vietGuideMarkers.length} địa điểm từ dữ liệu hệ thống.`
+    );
+
+    console.log("Số ghim địa điểm nổi bật:", featuredMarkers.length);
+    console.log("Số ghim từ API:", vietGuideMarkers.length);
+    console.log("Tổng số ghim:", totalMarkers);
+}
+
+
+// ======================================================
+// 8. KHOI CHAY UNG DUNG
+// ======================================================
+
+// Khởi tạo bản đồ độc lập với API.
+initVietGuideMap();
+
+// Hiển thị lịch sử đã lưu ngay khi mở trang.
+renderNarrationHistory();
+
+// Tải dữ liệu địa điểm và ngôn ngữ.
 loadOptions();

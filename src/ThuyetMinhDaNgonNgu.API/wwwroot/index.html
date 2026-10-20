@@ -8,11 +8,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#"><span class="brand-mark">V</span><span>viet<span class="brand-light">guide</span><small>DISCOVER VIETNAM</small></span></a>
-    <nav><a class="active" href="#discover">Khám phá</a><a href="#how">Cách hoạt động</a><a href="#about">Giới thiệu</a></nav>
+    <nav><a class="active" href="#discover">Khám phá</a><a href="#how">Cách hoạt động</a><a href="#about">Giới thiệu</a><a href="#mapExplore">Bản đồ</a>
+<a href="#history">Lịch sử</a></nav>
     <a class="nav-cta" href="#create">Tạo thuyết minh <span>↗</span></a>
     <button class="menu-toggle" aria-label="Mở menu">☰</button>
   </header>
@@ -39,7 +44,23 @@
         <article class="feature"><span class="feature-icon">♫</span><div><h3>Nghe và cảm nhận</h3><p>Đọc nội dung thuyết minh và nghe âm thanh nếu có sẵn.</p></div><span class="feature-no">03</span></article>
       </div>
     </section>
+    <!-- BẢN ĐỒ KHÁM PHÁ -->
+<section class="extra-section" id="mapExplore">
+    <p class="section-label">KHÁM PHÁ THẾ GIỚI</p>
 
+    <h2>Bạn muốn khám phá <em>ở đâu?</em></h2>
+
+    <p class="section-description">
+        Chọn một địa điểm trên bản đồ để bắt đầu hành trình
+        thuyết minh đa ngôn ngữ.
+    </p>
+
+    <div id="exploreMap"></div>
+
+    <p id="mapMessage">
+        Nhấn vào ghim trên bản đồ để chọn địa điểm.
+    </p>
+</section>
     <section class="builder" id="create">
       <div class="builder-inner">
         <div class="builder-copy"><div class="section-kicker light">TẠO HÀNH TRÌNH CỦA BẠN</div><h2>Câu chuyện tiếp theo<br>bắt đầu <em>từ đây.</em></h2><p>Chọn điểm đến, chọn ngôn ngữ. VietGuide sẽ giúp bạn bắt đầu hành trình khám phá.</p>
@@ -65,10 +86,31 @@
       <div class="result-head"><h2>Điều thú vị <em>đang chờ bạn.</em></h2><span class="result-status" id="resultStatus">THUYẾT MINH</span></div>
       <article class="result-card"><div class="result-meta" id="resultMeta"></div><h3 id="resultTitle">Nội dung thuyết minh</h3><p id="resultText"></p><audio id="audioPlayer" controls hidden></audio><div class="result-foot"><span>VIETGUIDE · YOUR STORY, YOUR WAY</span><button id="copyBtn" type="button">Sao chép nội dung ↗</button></div></article>
     </section>
+<!-- LỊCH SỬ THUYẾT MINH -->
+<section class="extra-section" id="history">
+    <div class="history-heading">
+        <div>
+            <p class="section-label">HÀNH TRÌNH CỦA BẠN</p>
+            <h2>Lịch sử <em>thuyết minh</em></h2>
+        </div>
 
+        <button id="clearHistory" type="button">
+            Xóa lịch sử
+        </button>
+    </div>
+
+    <p class="section-description">
+        Xem lại nội dung đã dịch và nghe lại các chuyến khám phá trước đây.
+    </p>
+
+    <div id="historyList">
+        <p>Bạn chưa có lịch sử thuyết minh.</p>
+    </div>
+</section>
     <section class="closing section-wrap" id="how"><div class="closing-symbol">✳</div><div><div class="section-kicker">ĐI THEO NHỊP CỦA BẠN</div><h2>Không chỉ là nơi bạn đến.<br><em>Mà là điều bạn mang về.</em></h2></div><a href="#create" class="round-link" aria-label="Tạo thuyết minh">↗</a></section>
   </main>
   <footer id="about"><a class="brand footer-brand" href="#"><span class="brand-mark">V</span><span>viet<span class="brand-light">guide</span><small>DISCOVER VIETNAM</small></span></a><span>Khám phá Việt Nam, theo cách của bạn.</span><span>© 2026 VIETGUIDE</span></footer>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
