@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ThuyetMinhDaNgonNgu.API.DTOs.Responses;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
-
+using ThuyetMinhDaNgonNgu.API.DTOs.Requests;
 namespace ThuyetMinhDaNgonNgu.API.Controllers;
 
 [ApiController]
@@ -47,4 +47,27 @@ public sealed class LocationsController : ControllerBase
             location.City,
             location.Description));
     }
+    
+[HttpPost]
+[ProducesResponseType(typeof(LocationResponse), StatusCodes.Status201Created)]
+public async Task<ActionResult<LocationResponse>> Create(
+    [FromBody] CreateLocationRequest request)
+{
+    var location = await _service.AddAsync(
+        request.Name,
+        request.City,
+        request.Description);
+
+    var response = new LocationResponse(
+        location.Id,
+        location.Name,
+        location.City,
+        location.Description);
+
+    return CreatedAtAction(
+        nameof(GetById),
+        new { id = location.Id },
+        response);
+}
+
 }

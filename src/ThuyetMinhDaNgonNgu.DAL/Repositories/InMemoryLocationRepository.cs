@@ -37,4 +37,12 @@ public sealed class InMemoryLocationRepository : ILocationRepository
     public IReadOnlyList<TouristLocation> GetAll() => Locations;
 
     public TouristLocation? GetById(int id) => Locations.FirstOrDefault(location => location.Id == id);
+public Task<TouristLocation> AddAsync(
+    string name,
+    string city,
+    string description)
+{
+    throw new NotSupportedException(
+        "Repository này không hỗ trợ thêm địa điểm.");
+}
 }
