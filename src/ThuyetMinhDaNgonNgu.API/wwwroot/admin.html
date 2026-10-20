@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VietGuide — Quản trị</title><link rel="stylesheet" href="css/admin.css"></head>
+<body><header><a class="brand" href="index.html"><span>V</span> VietGuide <small>ADMIN CONSOLE</small></a><nav><a href="index.html">Trang khách hàng ↗</a></nav></header>
+<main><section class="intro"><p class="eyebrow">BẢNG ĐIỀU KHIỂN QUẢN TRỊ</p><h1>Quản lý nội dung<br><em>thuyết minh.</em></h1><p>Quản lý ngôn ngữ và chỉnh sửa bản thuyết minh tại một đường dẫn riêng dành cho quản trị viên.</p></section>
+<div class="layout"><section class="panel"><div class="panel-title"><span>01</span><div><h2>Thêm ngôn ngữ</h2><p>Ngôn ngữ mới sẽ xuất hiện ở trang khách hàng sau khi thêm thành công.</p></div></div>
+<form id="languageForm"><label for="code">Mã ngôn ngữ</label><input id="code" placeholder="Ví dụ: ja" maxlength="10" required><label for="name">Tên ngôn ngữ</label><input id="name" placeholder="Ví dụ: Tiếng Nhật" required><button>Thêm ngôn ngữ <b>↗</b></button></form><p class="notice" id="languageMessage" role="status"></p>
+<div class="subhead">Ngôn ngữ hiện có</div><div id="languageList" class="language-list">Đang tải...</div></section>
+<section class="panel"><div class="panel-title"><span>02</span><div><h2>Cập nhật bản thuyết minh</h2><p>Tạo bản nháp từ API, chỉnh sửa nội dung và lưu bản đã cập nhật trên máy chủ.</p></div></div>
+<form id="narrationForm"><label for="location">Địa điểm</label><select id="location" required><option value="">Đang tải địa điểm...</option></select><label for="language">Ngôn ngữ</label><select id="language" required><option value="">Đang tải ngôn ngữ...</option></select><button type="submit" class="secondary">Tạo bản thuyết minh để chỉnh sửa <b>↗</b></button></form>
+<label for="narrationText" class="textarea-label">Nội dung thuyết minh</label><textarea id="narrationText" rows="10" placeholder="Nội dung sẽ hiển thị tại đây sau khi tạo hoặc bạn có thể nhập nội dung..."></textarea>
+<div class="actions"><button id="saveBtn" type="button">Lưu bản cập nhật</button><button id="loadBtn" type="button" class="outline">Tải bản đã lưu</button></div><p class="notice" id="narrationMessage" role="status"></p><div id="savedList" class="saved-list"></div>
+</section></div><footer>VIETGUIDE · KHU VỰC QUẢN TRỊ <span><a href="index.html">← Quay lại trang khách hàng</a></span></footer></main><script src="js/admin.js"></script></body></html>
