@@ -1,4 +1,3 @@
-
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -24,9 +23,13 @@ public class AIProvider : IAiNarrationProvider
         string languageCode)
     {
         string apiKey = _configuration["Gemini:ApiKey"]
-            ?? throw new InvalidOperationException("Chưa cấu hình Gemini:ApiKey.");
+            ?? throw new InvalidOperationException(
+                "Chưa cấu hình Gemini:ApiKey.");
 
-        string model = _configuration["Gemini:Model"] ?? "gemini-3.8-flash";
+        string model = _configuration["Gemini:Model"]
+            ?? "gemini-3.8-flash";
+
+        Console.WriteLine($"Gemini model đang gọi: {model}");
 
         string language = languageCode.ToLower() switch
         {
@@ -36,7 +39,8 @@ public class AIProvider : IAiNarrationProvider
             "ko" => "Korean",
             "fr" => "French",
             "zh" => "Chinese",
-            _ => throw new ArgumentException("Ngôn ngữ chưa được hỗ trợ.")
+            _ => throw new ArgumentException(
+                "Ngôn ngữ chưa được hỗ trợ.")
         };
 
         string prompt = $"""
@@ -83,6 +87,7 @@ public class AIProvider : IAiNarrationProvider
             .GetProperty("parts")[0]
             .GetProperty("text")
             .GetString()
-            ?? throw new InvalidOperationException("Gemini không trả về nội dung.");
+            ?? throw new InvalidOperationException(
+                "Gemini không trả về nội dung.");
     }
 }

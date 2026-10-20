@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#102b26">
+  <title>VietGuide — Thuyết minh đa ngôn ngữ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">V</span><span>viet<span class="brand-light">guide</span><small>DISCOVER VIETNAM</small></span></a>
+    <nav><a class="active" href="#discover">Khám phá</a><a href="#how">Cách hoạt động</a><a href="#about">Giới thiệu</a></nav>
+    <a class="nav-cta" href="#create">Tạo thuyết minh <span>↗</span></a>
+    <button class="menu-toggle" aria-label="Mở menu">☰</button>
+  </header>
+
+  <main>
+    <section class="hero" id="discover">
+      <div class="hero-image"></div><div class="hero-shade"></div>
+      <div class="hero-content">
+        <div class="eyebrow"><span></span> HÀNH TRÌNH CỦA RIÊNG BẠN</div>
+        <h1>Mỗi điểm đến<br>đều có <em>một câu chuyện.</em></h1>
+        <p>Khám phá những câu chuyện văn hóa và lịch sử Việt Nam qua lời thuyết minh bằng ngôn ngữ bạn yêu thích.</p>
+        <a class="hero-link" href="#create">Bắt đầu khám phá <span>↓</span></a>
+      </div>
+      <div class="hero-note"><span class="note-line"></span><span>DI SẢN · VĂN HÓA · CON NGƯỜI</span></div>
+      <div class="hero-counter"><strong>01</strong><span> / KHÁM PHÁ VIỆT NAM</span></div>
+    </section>
+
+    <section class="intro section-wrap">
+      <div class="section-kicker">KHÁM PHÁ THEO CÁCH CỦA BẠN</div>
+      <div class="intro-row"><h2>Đi xa hơn.<br><em>Hiểu sâu hơn.</em></h2><p>Từ những di tích cổ kính đến nhịp sống thành phố hiện đại, hãy để mỗi nơi bạn ghé thăm trở nên sống động hơn với nội dung thuyết minh phù hợp với bạn.</p></div>
+      <div class="feature-grid">
+        <article class="feature"><span class="feature-icon">◎</span><div><h3>Địa điểm nổi bật</h3><p>Chọn địa danh và khám phá những câu chuyện phía sau mỗi nơi.</p></div><span class="feature-no">01</span></article>
+        <article class="feature"><span class="feature-icon">文</span><div><h3>Đa ngôn ngữ</h3><p>Trải nghiệm nội dung bằng ngôn ngữ bạn cảm thấy thoải mái nhất.</p></div><span class="feature-no">02</span></article>
+        <article class="feature"><span class="feature-icon">♫</span><div><h3>Nghe và cảm nhận</h3><p>Đọc nội dung thuyết minh và nghe âm thanh nếu có sẵn.</p></div><span class="feature-no">03</span></article>
+      </div>
+    </section>
+
+    <section class="builder" id="create">
+      <div class="builder-inner">
+        <div class="builder-copy"><div class="section-kicker light">TẠO HÀNH TRÌNH CỦA BẠN</div><h2>Câu chuyện tiếp theo<br>bắt đầu <em>từ đây.</em></h2><p>Chọn điểm đến, chọn ngôn ngữ. VietGuide sẽ giúp bạn bắt đầu hành trình khám phá.</p>
+          <div class="mini-stats"><div><strong>01</strong><span>Chọn địa điểm</span></div><i></i><div><strong>02</strong><span>Chọn ngôn ngữ</span></div><i></i><div><strong>03</strong><span>Khám phá</span></div></div>
+        </div>
+        <div class="form-card">
+          <div class="form-heading"><span class="form-step">BƯỚC 01 — 02</span><span class="status-dot"></span></div>
+          <h3>Tạo thuyết minh</h3><p class="form-subtitle">Cá nhân hóa trải nghiệm tham quan của bạn.</p>
+          <form id="narrationForm">
+            <label for="locationSelect">Bạn muốn khám phá đâu?</label><div class="select-wrap"><span class="select-symbol">⌖</span><select id="locationSelect" required><option value="">Đang tải địa điểm...</option></select><span class="select-arrow">⌄</span></div>
+            <div class="location-preview" id="locationPreview">Chọn một địa điểm để xem thông tin giới thiệu.</div>
+            <label for="languageSelect">Ngôn ngữ thuyết minh</label><div class="select-wrap"><span class="select-symbol">文</span><select id="languageSelect" required><option value="">Đang tải ngôn ngữ...</option></select><span class="select-arrow">⌄</span></div>
+            <button class="submit-btn" id="submitBtn" type="submit">Tạo nội dung thuyết minh <span>↗</span></button>
+            <p class="privacy-note">✦ Nội dung hiện tại có thể ở chế độ minh họa.</p>
+          </form>
+          <div class="error-message" id="errorMessage" role="alert"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="result-section section-wrap" id="resultSection" hidden>
+      <div class="section-kicker">CÂU CHUYỆN DÀNH CHO BẠN</div>
+      <div class="result-head"><h2>Điều thú vị <em>đang chờ bạn.</em></h2><span class="result-status" id="resultStatus">THUYẾT MINH</span></div>
+      <article class="result-card"><div class="result-meta" id="resultMeta"></div><h3 id="resultTitle">Nội dung thuyết minh</h3><p id="resultText"></p><audio id="audioPlayer" controls hidden></audio><div class="result-foot"><span>VIETGUIDE · YOUR STORY, YOUR WAY</span><button id="copyBtn" type="button">Sao chép nội dung ↗</button></div></article>
+    </section>
+
+    <section class="closing section-wrap" id="how"><div class="closing-symbol">✳</div><div><div class="section-kicker">ĐI THEO NHỊP CỦA BẠN</div><h2>Không chỉ là nơi bạn đến.<br><em>Mà là điều bạn mang về.</em></h2></div><a href="#create" class="round-link" aria-label="Tạo thuyết minh">↗</a></section>
+  </main>
+  <footer id="about"><a class="brand footer-brand" href="#"><span class="brand-mark">V</span><span>viet<span class="brand-light">guide</span><small>DISCOVER VIETNAM</small></span></a><span>Khám phá Việt Nam, theo cách của bạn.</span><span>© 2026 VIETGUIDE</span></footer>
+  <script src="js/app.js"></script>
+</body>
+</html>
