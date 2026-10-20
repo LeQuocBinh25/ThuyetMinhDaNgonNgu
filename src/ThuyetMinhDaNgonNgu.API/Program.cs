@@ -41,8 +41,15 @@ builder.Services.AddScoped<ILanguageService, LanguageService>();
 builder.Services.AddScoped<INarrationService, NarrationService>();
 
 
-builder.Services.AddHttpClient<IAiNarrationProvider, AIProvider>();
-builder.Services.AddHttpClient<IAudioNarrationProvider, GeminiAudioProvider>();
+builder.Services.AddHttpClient<IAiNarrationProvider, AIProvider>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(3);
+});
+
+builder.Services.AddHttpClient<IAudioNarrationProvider, GeminiAudioProvider>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(3);
+});
 builder.Services.AddSingleton<ILanguageRepository, InMemoryLanguageRepository>();
 builder.Services.AddSingleton<ILocationRepository, InMemoryLocationRepository>();
 var app = builder.Build();
