@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using ThuyetMinhDaNgonNgu.DAL.ExternalServices;
 using Microsoft.EntityFrameworkCore;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
@@ -12,24 +11,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
-// Resolve the SQLite database path relative to the API project, not the shell's working directory.
-var configuredConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Data Source=App_Data/multilingual-narration.db";
-var sqliteConnectionString = new SqliteConnectionStringBuilder(configuredConnectionString);
-if (!Path.IsPathRooted(sqliteConnectionString.DataSource))
-{
-    sqliteConnectionString.DataSource = Path.GetFullPath(
-        Path.Combine(builder.Environment.ContentRootPath, sqliteConnectionString.DataSource));
-}
+// Supabase
+var connectionString =
+    builder.Configuration.GetConnectionString("DefaultConnection");
 
-var databaseDirectory = Path.GetDirectoryName(sqliteConnectionString.DataSource);
-if (!string.IsNullOrWhiteSpace(databaseDirectory))
+if (string.IsNullOrWhiteSpace(connectionString))
 {
-    Directory.CreateDirectory(databaseDirectory);
+    throw new InvalidOperationException(
+        "Chưa cấu hình ConnectionStrings:DefaultConnection.");
 }
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(sqliteConnectionString.ConnectionString));
+    options.UseNpgsql(connectionString));
 
 // Data Access Layer: repository implementations now use SQLite instead of in-memory lists.
 builder.Services.AddScoped<ILocationRepository, SqliteLocationRepository>();

@@ -11,7 +11,7 @@ public static class DatabaseSeeder
     {
         // EnsureCreated tạo schema nếu file SQLite chưa tồn tại.
         // Khi schema ổn định, có thể chuyển sang EF Core Migrations.
-        dbContext.Database.EnsureCreated();
+        dbContext.Database.Migrate();
 
         if (!dbContext.Locations.Any())
         {
