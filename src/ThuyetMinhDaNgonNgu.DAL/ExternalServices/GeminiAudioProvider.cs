@@ -25,7 +25,7 @@ public class GeminiAudioProvider : IAudioNarrationProvider
     public async Task<GeneratedAudio> GenerateAudioAsync(string text, string languageCode)
     {
         string apiKey = _configuration["Gemini:ApiKey"]
-            ?? throw new InvalidOperationException("Chưa cấu hình Gemini:ApiKey.");
+            ?? throw new ProviderConfigurationException("Chưa cấu hình Gemini:ApiKey.");
 
         string model = _configuration["Gemini:TtsModel"] ?? "gemini-2.5-flash-preview-tts";
         var request = new HttpRequestMessage(

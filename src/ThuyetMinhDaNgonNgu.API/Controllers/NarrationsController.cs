@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using ThuyetMinhDaNgonNgu.API.DTOs.Requests;
 using ThuyetMinhDaNgonNgu.API.DTOs.Responses;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
+using ThuyetMinhDaNgonNgu.BLL.Models;
 
 namespace ThuyetMinhDaNgonNgu.API.Controllers;
 
@@ -52,6 +53,10 @@ public sealed class NarrationsController : ControllerBase
         catch (ArgumentException exception)
         {
             return BadRequest(new { message = exception.Message });
+        }
+        catch (ProviderConfigurationException exception)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = exception.Message });
         }
     }
 }

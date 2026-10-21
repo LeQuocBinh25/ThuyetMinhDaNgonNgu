@@ -20,7 +20,7 @@ public sealed class AppDbContextFactory
         }
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(connectionString)
+            .UseNpgsql(PostgresConnectionString.Normalize(connectionString))
             .Options;
 
         return new AppDbContext(options);

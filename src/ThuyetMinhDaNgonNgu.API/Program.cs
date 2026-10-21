@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Threading.RateLimiting;
+using System.Security.Cryptography;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,19 +29,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "Chưa cấu hình ConnectionStrings:DefaultConnection.");
 }
 
-string RequireSetting(string key)
-{
-    var value = builder.Configuration[key];
-    return !string.IsNullOrWhiteSpace(value)
-        ? value
-        : throw new InvalidOperationException($"Chưa cấu hình {key}.");
-}
-
-RequireSetting("Gemini:ApiKey");
-RequireSetting("Supabase:Url");
-RequireSetting("Supabase:ServiceRoleKey");
-RequireSetting("Admin:Username");
-RequireSetting("Admin:Password");
+connectionString = PostgresConnectionString.Normalize(connectionString);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString, postgres =>
@@ -74,12 +63,15 @@ builder.Services.AddHttpClient<IAudioNarrationProvider, GeminiAudioProvider>(cli
     client.Timeout = TimeSpan.FromMinutes(3);
 });
 
-string signingKey = builder.Configuration["Jwt:SigningKey"]
-    ?? throw new InvalidOperationException("Chưa cấu hình Jwt:SigningKey.");
-if (Encoding.UTF8.GetByteCount(signingKey) < 32)
+string? configuredSigningKey = builder.Configuration["Jwt:SigningKey"];
+if (!string.IsNullOrWhiteSpace(configuredSigningKey) &&
+    Encoding.UTF8.GetByteCount(configuredSigningKey) < 32)
 {
     throw new InvalidOperationException("Jwt:SigningKey phải có tối thiểu 32 byte.");
 }
+
+string signingKey = configuredSigningKey
+    ?? Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
 string jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "VietGuide";
 string jwtAudience = builder.Configuration["Jwt:Audience"] ?? "VietGuideAdmin";

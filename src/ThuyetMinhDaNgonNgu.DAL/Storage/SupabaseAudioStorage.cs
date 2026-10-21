@@ -18,15 +18,15 @@ public sealed class SupabaseAudioStorage : IAudioStorage
     {
         _httpClient = httpClient;
         _baseUrl = (configuration["Supabase:Url"]
-            ?? throw new InvalidOperationException("Chưa cấu hình Supabase:Url.")).TrimEnd('/');
+            ?? throw new ProviderConfigurationException("Chưa cấu hình Supabase:Url.")).TrimEnd('/');
         _serviceRoleKey = configuration["Supabase:ServiceRoleKey"]
-            ?? throw new InvalidOperationException("Chưa cấu hình Supabase:ServiceRoleKey.");
+            ?? throw new ProviderConfigurationException("Chưa cấu hình Supabase:ServiceRoleKey.");
         _bucket = configuration["Supabase:AudioBucket"] ?? "narration-audio";
 
         if (!Uri.TryCreate(_baseUrl, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttps && uri.Host != "localhost"))
         {
-            throw new InvalidOperationException("Supabase:Url phải là địa chỉ HTTPS hợp lệ.");
+            throw new ProviderConfigurationException("Supabase:Url phải là địa chỉ HTTPS hợp lệ.");
         }
     }
 

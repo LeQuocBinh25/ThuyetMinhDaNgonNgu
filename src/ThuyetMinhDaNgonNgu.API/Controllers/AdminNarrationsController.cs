@@ -43,6 +43,10 @@ public sealed class AdminNarrationsController(IAdminNarrationService service) : 
         {
             return BadRequest(new { message = exception.Message });
         }
+        catch (ProviderConfigurationException exception)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = exception.Message });
+        }
     }
 
     [HttpPut("{locationId:int}/{languageCode}")]
@@ -63,6 +67,10 @@ public sealed class AdminNarrationsController(IAdminNarrationService service) : 
         catch (ArgumentException exception)
         {
             return BadRequest(new { message = exception.Message });
+        }
+        catch (ProviderConfigurationException exception)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = exception.Message });
         }
     }
 

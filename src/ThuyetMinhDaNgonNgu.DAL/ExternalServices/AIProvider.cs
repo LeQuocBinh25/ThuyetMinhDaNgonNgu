@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
+using ThuyetMinhDaNgonNgu.BLL.Models;
 
 namespace ThuyetMinhDaNgonNgu.DAL.ExternalServices;
 
@@ -23,7 +24,7 @@ public class AIProvider : IAiNarrationProvider
         string languageCode)
     {
         string apiKey = _configuration["Gemini:ApiKey"]
-            ?? throw new InvalidOperationException(
+            ?? throw new ProviderConfigurationException(
                 "Chưa cấu hình Gemini:ApiKey.");
 
         string model = _configuration["Gemini:Model"] ?? "gemini-2.5-flash";

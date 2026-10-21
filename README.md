@@ -21,6 +21,8 @@ Không lưu connection string, Gemini API key, Supabase service role key, mật 
 | `Jwt__Issuer` | Issuer, mặc định `VietGuide` |
 | `Jwt__Audience` | Audience, mặc định `VietGuideAdmin` |
 
+`ConnectionStrings__DefaultConnection` phải là **PostgreSQL connection string**, không phải `Supabase__Url` (URL HTTPS của project). Ứng dụng chấp nhận dạng `Host=...;Port=5432;Database=postgres;Username=...;Password=...;SSL Mode=Require` hoặc URI PostgreSQL do Supabase cấp dạng `postgresql://username:password@host:5432/database?sslmode=require`. Nếu mật khẩu có ký tự đặc biệt trong URI, phải URL-encode theo định dạng URI; dạng `Host=...` thường dễ nhập chính xác hơn.
+
 Ví dụ đặt secret local (thay giá trị bằng secret của môi trường riêng; không đưa giá trị thật vào source):
 
 ```powershell
@@ -34,6 +36,8 @@ dotnet user-secrets set "Jwt:SigningKey" "<random-secret-at-least-32-bytes>"
 ```
 
 `Supabase__ServiceRoleKey` không được đưa vào HTML/JavaScript. API upload/delete audio bằng key này. Tạo bucket `narration-audio` trong Supabase Storage và bật public read cho bucket để trình duyệt phát audio bằng `AudioUrl`; không cấp quyền upload/delete cho `anon` hoặc `authenticated`. Ứng dụng chỉ lưu object path, MIME type và metadata trong PostgreSQL, không ghi audio vào filesystem Render.
+
+`Gemini__ApiKey`, `Supabase__Url`, `Supabase__ServiceRoleKey`, `Admin__Username`, `Admin__Password` và `Jwt__SigningKey` không bắt buộc để khởi động ứng dụng hoặc tải danh sách địa điểm/ngôn ngữ. Kết nối PostgreSQL (`ConnectionStrings__DefaultConnection`) vẫn bắt buộc. Nếu thiếu Gemini key, endpoint tạo thuyết minh/trình tạo nháp trả `503 Service Unavailable`; nếu thiếu cấu hình Storage, thao tác tạo audio không thể lưu. Admin cần đủ các cấu hình Admin/JWT nêu trên để đăng nhập; khi thiếu signing key, server dùng key ngẫu nhiên chỉ trong tiến trình hiện tại nên không phát hành token Admin dùng được. Để bật đầy đủ AI, audio online và Admin local, đặt các secret bằng User Secrets hoặc biến môi trường.
 
 ## Chạy local
 
