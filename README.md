@@ -1,18 +1,41 @@
-# ThuyetMinhDaNgonNgu — Giai đoạn 2: SQLite
+# VietGuide — Thuyết minh du lịch đa ngôn ngữ
 
-Backend ASP.NET Core .NET 10 theo cấu trúc 3 project API, BLL và DAL.
+Ứng dụng ASP.NET Core .NET 10 gồm ba project API/BLL/DAL, giao diện HTML/CSS/JavaScript, PostgreSQL trên Supabase, Gemini cho nội dung và audio, Supabase Storage cho audio đã công bố. API chạy cùng frontend tĩnh trên Render.
 
-Ở giai đoạn này, dữ liệu địa điểm và ngôn ngữ đã chuyển từ danh sách trong bộ nhớ sang SQLite thông qua Entity Framework Core. Chức năng tạo thuyết minh vẫn trả về văn bản mô phỏng; chưa gọi AI, chưa tạo âm thanh và chưa lưu lịch sử thuyết minh.
+## Cấu hình
 
-## Yêu cầu
+Không lưu connection string, Gemini API key, Supabase service role key, mật khẩu Admin hoặc JWT signing key trong Git. Có thể cấu hình bằng environment variables (Render) hoặc .NET User Secrets (máy local).
 
-- .NET 10 SDK
-- Kết nối Internet trong lần đầu chạy `dotnet restore` để tải NuGet package
-- Postman hoặc REST Client của VS Code để kiểm thử API
+| Environment variable | Mục đích |
+|---|---|
+| `ConnectionStrings__DefaultConnection` | Connection string PostgreSQL Supabase hiện đang dùng. Giữ nguyên endpoint/kiểu kết nối đã xác nhận hoạt động; ứng dụng dùng Npgsql và SSL theo connection string đó. |
+| `Gemini__ApiKey` | Gemini API key phía Backend |
+| `Gemini__Model` | Model sinh nội dung; mặc định `gemini-3.8-flash` |
+| `Gemini__TtsModel` | Model TTS; mặc định `gemini-2.5-flash-preview-tts` |
+| `Supabase__Url` | URL project Supabase |
+| `Supabase__ServiceRoleKey` | Service role key chỉ dùng phía Backend |
+| `Supabase__AudioBucket` | Tên bucket; mặc định `narration-audio` |
+| `Admin__Username` | Tên đăng nhập Admin |
+| `Admin__Password` | Mật khẩu Admin |
+| `Jwt__SigningKey` | Secret ký JWT, tối thiểu 32 byte |
+| `Jwt__Issuer` | Issuer, mặc định `VietGuide` |
+| `Jwt__Audience` | Audience, mặc định `VietGuideAdmin` |
 
-## Chạy ứng dụng
+Ví dụ đặt secret local (thay giá trị bằng secret của môi trường riêng; không đưa giá trị thật vào source):
 
-Mở Terminal ở thư mục chứa `ThuyetMinhDaNgonNgu.sln`:
+```powershell
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<connection-string-Supabase>"
+dotnet user-secrets set "Gemini:ApiKey" "<Gemini-API-key>"
+dotnet user-secrets set "Supabase:Url" "<Supabase-project-URL>"
+dotnet user-secrets set "Supabase:ServiceRoleKey" "<Supabase-service-role-key>"
+dotnet user-secrets set "Admin:Username" "<admin-username>"
+dotnet user-secrets set "Admin:Password" "<strong-admin-password>"
+dotnet user-secrets set "Jwt:SigningKey" "<random-secret-at-least-32-bytes>"
+```
+
+`Supabase__ServiceRoleKey` không được đưa vào HTML/JavaScript. API upload/delete audio bằng key này. Tạo bucket `narration-audio` trong Supabase Storage và bật public read cho bucket để trình duyệt phát audio bằng `AudioUrl`; không cấp quyền upload/delete cho `anon` hoặc `authenticated`. Ứng dụng chỉ lưu object path, MIME type và metadata trong PostgreSQL, không ghi audio vào filesystem Render.
+
+## Chạy local
 
 ```powershell
 dotnet restore .\ThuyetMinhDaNgonNgu.sln
@@ -20,79 +43,71 @@ dotnet build .\ThuyetMinhDaNgonNgu.sln
 dotnet run --launch-profile https --project .\src\ThuyetMinhDaNgonNgu.API\ThuyetMinhDaNgonNgu.API.csproj
 ```
 
-Theo `launchSettings.json`, địa chỉ HTTPS dự kiến là `https://localhost:7138` và HTTP là `http://localhost:5094`. Nếu Terminal hiển thị cổng khác, hãy dùng đúng địa chỉ đang lắng nghe.
+Launch profile giữ nguyên HTTPS `https://localhost:7138` và HTTP `http://localhost:5094`. Khi kết nối PostgreSQL hoặc áp dụng migration không thành công, API dừng khi khởi động thay vì trả dữ liệu thành công giả.
 
-## SQLite được lưu ở đâu?
+## PostgreSQL schema và migrations
 
-Database sẽ được tạo tự động tại:
+`Program.cs` chạy `Database.MigrateAsync()` trước khi phục vụ HTTP requests. Migration hiện tại tạo `Narrations`, unique constraint trên `(LocationId, LanguageCode)` và hai cột tọa độ nullable cho `Locations`; dữ liệu `Locations`/`Languages` hiện có không bị xóa hay dựng lại. Seed chỉ thêm dữ liệu mẫu khi bảng tương ứng trống, bổ sung tọa độ cho các địa danh mẫu đã biết khi tọa độ còn thiếu, và đồng bộ identity sequence sau các ID seed tường minh.
 
-`src/ThuyetMinhDaNgonNgu.API/App_Data/multilingual-narration.db`
+Để tạo migration tiếp theo:
 
-Khi ứng dụng khởi động lần đầu, `DatabaseSeeder` tạo schema bằng `EnsureCreated()` và thêm dữ liệu mẫu nếu bảng tương ứng còn trống. Các lần khởi động sau sẽ đọc lại database hiện có, vì vậy việc dừng/chạy lại API không làm mất dữ liệu.
+```powershell
+$env:ConnectionStrings__DefaultConnection = "<connection-string-Supabase>"
+dotnet ef migrations add <MigrationName> --project .\src\ThuyetMinhDaNgonNgu.DAL\ThuyetMinhDaNgonNgu.DAL.csproj --startup-project .\src\ThuyetMinhDaNgonNgu.API\ThuyetMinhDaNgonNgu.API.csproj
+```
 
-Hai bảng hiện tại:
+Trước lần deploy đầu tiên với một database đang có dữ liệu, kiểm tra bảng `"__EFMigrationsHistory"` trong Supabase. Migration ban đầu `20261021005949_InitialPostgresSchema` tạo hai bảng hiện có; **không** để EF chạy migration khởi tạo đó trên các bảng đã được tạo thủ công nếu chưa baseline. Nếu history chưa có migration nhưng `"Locations"` và `"Languages"` đã tồn tại, trước tiên xác minh schema, khóa chính, cột và kiểu dữ liệu của hai bảng khớp chính xác với migration ban đầu trong `src/ThuyetMinhDaNgonNgu.DAL/Persistence/Migrations/20261021005949_InitialPostgresSchema.cs`. Sau khi xác minh và sao lưu, baseline migration ban đầu bằng cách ghi nhận đúng migration đó trong history; không chạy script tạo lại bảng, không xóa/reset dữ liệu. Nếu schema khác, dừng deploy và tạo baseline migration phù hợp sau khi đối chiếu schema thực tế. Các migration mới sẽ được áp dụng tuần tự bởi EF Core.
 
-- `Locations`: Id, Name, City, Description
-- `Languages`: Code, Name
+Chỉ khi schema đã được xác minh khớp và history chưa ghi nhận migration ban đầu, có thể baseline bằng SQL sau trong Supabase SQL Editor:
 
-Để giữ file database ngoài Git, `.gitignore` loại trừ các file `.db`, `.db-shm`, `.db-wal` trong thư mục `App_Data`.
+```sql
+CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+    "MigrationId" character varying(150) NOT NULL,
+    "ProductVersion" character varying(32) NOT NULL,
+    CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
+);
 
-> Giai đoạn này dùng `EnsureCreated()` để có thể học và kiểm thử nhanh. Khi schema cần thay đổi trong quá trình phát triển, không nên tiếp tục sửa schema thủ công; hãy chuyển sang EF Core Migrations. Xóa file database chỉ nên là biện pháp phát triển cục bộ khi bạn chấp nhận mất dữ liệu mẫu đã lưu.
+INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+VALUES ('20261021005949_InitialPostgresSchema', '10.0.13')
+ON CONFLICT ("MigrationId") DO NOTHING;
+```
+
+Không chạy đoạn baseline chỉ dựa trên việc bảng đã tồn tại; phải kiểm tra đầy đủ schema trước, nếu không migration tiếp theo có thể giả định thiếu/sai cấu trúc hiện có.
 
 ## API
 
-| Method | Endpoint | Mục đích |
-|---|---|---|
-| GET | `/api/locations` | Lấy tất cả địa điểm từ SQLite |
-| GET | `/api/locations/{id}` | Lấy một địa điểm từ SQLite |
-| GET | `/api/languages` | Lấy danh sách ngôn ngữ từ SQLite |
-| POST | `/api/languages` | Thêm ngôn ngữ mới vào SQLite |
-| POST | `/api/narrations` | Kiểm tra địa điểm/ngôn ngữ từ SQLite rồi trả văn bản thuyết minh mô phỏng |
+| Method | Endpoint | Truy cập | Mô tả |
+|---|---|---|---|
+| GET | `/api/locations` | Public | Địa điểm, gồm `latitude`/`longitude` nullable |
+| GET | `/api/locations/{id}` | Public | Chi tiết địa điểm |
+| POST | `/api/locations` | Admin JWT | Thêm địa điểm |
+| GET | `/api/languages` | Public | Danh sách ngôn ngữ |
+| POST | `/api/languages` | Admin JWT | Thêm ngôn ngữ |
+| POST | `/api/narrations` | Public, giới hạn 5 request/phút/IP | Lấy bản hiện hành hoặc tạo nội dung + audio |
+| POST | `/api/admin/auth/login` | Public, giới hạn đăng nhập | Đăng nhập lấy JWT role `Admin` |
+| GET | `/api/admin/narrations` | Admin JWT | Danh sách bản hiện hành |
+| GET | `/api/admin/narrations/{locationId}/{languageCode}` | Admin JWT | Lấy một bản hiện hành |
+| POST | `/api/admin/narrations/draft` | Admin JWT, giới hạn 5 request/phút/IP | Sinh nháp văn bản bằng AI |
+| PUT | `/api/admin/narrations/{locationId}/{languageCode}` | Admin JWT | Tạo audio từ văn bản cuối và công bố/upsert |
 
-Ví dụ thêm tiếng Tây Ban Nha:
+Ví dụ yêu cầu thuyết minh:
 
 ```http
-POST /api/languages
+POST /api/narrations
 Content-Type: application/json
 
-{
-  "code": "es",
-  "name": "Español"
-}
-```
-
-API trả `201 Created`. Gọi lại `GET /api/languages` để thấy ngôn ngữ vừa thêm. `code` dài từ 2 đến 10 ký tự được chuẩn hóa thành chữ thường; `name` là tên hiển thị. Nếu mã đã tồn tại, API trả `409 Conflict`.
-
-Ví dụ body cho `POST /api/narrations`:
-
-```json
 {
   "locationId": 1,
   "languageCode": "en"
 }
 ```
 
-Ngôn ngữ mẫu: `vi`, `en`, `ja`.
+Response gồm `id`, `locationId`, `languageCode`, `text`, `audioUrl`, `status`, `createdAtUtc`, `updatedAtUtc` và `isCached`. Audio cache được xác minh còn truy cập được trước khi trả về; nếu thiếu audio, hệ thống dùng lại văn bản đã lưu và chỉ tạo lại audio. Admin phải đăng nhập và gửi `Authorization: Bearer <accessToken>` cho các thao tác quản trị. Draft AI chưa được lưu/công bố; khi PUT, hệ thống tạo audio cho chính văn bản cuối trước, upload thành công rồi mới upsert bản hiện hành. Unique constraint bảo vệ mỗi cặp địa điểm/ngôn ngữ khỏi bản hiện hành trùng lặp.
 
-## Kiểm thử bằng Postman
+## Kiến trúc và deploy
 
-Dùng `http://localhost:5094` hoặc `https://localhost:7138` theo cổng được hiển thị trong Terminal.
+- `src/ThuyetMinhDaNgonNgu.API/`: Controllers, DTOs, authentication/authorization, rate limiting, HTTP và DI.
+- `src/ThuyetMinhDaNgonNgu.BLL/`: interfaces, models và nghiệp vụ.
+- `src/ThuyetMinhDaNgonNgu.DAL/`: EF entities/DbContext/migrations, PostgreSQL repositories, Gemini/TTS và Supabase Storage.
 
-1. `GET /api/locations` — phải trả về 3 địa điểm mẫu.
-2. `GET /api/languages` — phải trả về 3 ngôn ngữ mẫu.
-3. `GET /api/locations/1` — phải trả về Hồ Hoàn Kiếm.
-4. `POST /api/narrations` với body trên — phải trả `200 OK` và `status` là `demo-text-only`.
-5. Gửi `POST` với `locationId: 999` — mong đợi `404`.
-6. Gửi `POST` với `languageCode: "fr"` — mong đợi `400`.
-
-Để xác nhận dữ liệu thật sự được đọc từ SQLite, dừng ứng dụng, chạy lại, rồi gửi lại các request GET. Dữ liệu mẫu vẫn phải còn.
-
-## Trách nhiệm theo 3 lớp
-
-- **API**: Controller, DTO, HTTP response, khởi tạo ứng dụng và đăng ký Dependency Injection.
-- **BLL**: models, interface và logic nghiệp vụ.
-- **DAL**: Entity, `AppDbContext`, seed data và các repository dùng EF Core/SQLite.
-
-## Giai đoạn sau
-
-Khi dữ liệu SQLite ổn định, bước tiếp theo là tạo abstraction cho dịch vụ sinh nội dung AI, tích hợp Text-to-Speech, rồi mới cân nhắc lưu lịch sử thuyết minh.
+Render cần đặt các biến môi trường trong bảng cấu hình ở trên; riêng connection string phải dùng `ConnectionStrings__DefaultConnection` và giữ nguyên connection string Supabase đang hoạt động. `.dockerfile` tiếp tục dùng `PORT` do Render cấp. Không cần persistent disk cho audio.

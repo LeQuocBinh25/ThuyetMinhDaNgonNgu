@@ -12,14 +12,24 @@ public sealed class LanguageService : ILanguageService
         _repository = repository;
     }
 
-    public IReadOnlyList<SupportedLanguage> GetAll() => _repository.GetAll();
+    public Task<IReadOnlyList<SupportedLanguage>> GetAllAsync() =>
+        _repository.GetAllAsync();
 
-    public SupportedLanguage? Add(string code, string name)
+    public Task<SupportedLanguage?> AddAsync(string code, string name)
     {
+        if (string.IsNullOrWhiteSpace(code))
+            throw new ArgumentException("Mã ngôn ngữ không được để trống.", nameof(code));
+
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Tên ngôn ngữ không được để trống.", nameof(name));
+
         var language = new SupportedLanguage(
             code.Trim().ToLowerInvariant(),
             name.Trim());
 
-        return _repository.TryAdd(language) ? language : null;
+        return AddIfAvailableAsync(language);
     }
+
+    private async Task<SupportedLanguage?> AddIfAvailableAsync(SupportedLanguage language) =>
+        await _repository.TryAddAsync(language) ? language : null;
 }

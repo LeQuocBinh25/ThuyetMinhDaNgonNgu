@@ -4,4 +4,6 @@ public sealed record LocationResponse(
     int Id,
     string Name,
     string City,
-    string Description);
+    string Description,
+    double? Latitude,
+    double? Longitude);

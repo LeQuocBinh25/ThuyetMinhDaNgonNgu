@@ -5,12 +5,14 @@ namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;
 
 public interface ILocationRepository
 {
-    IReadOnlyList<TouristLocation> GetAll();
+    Task<IReadOnlyList<TouristLocation>> GetAllAsync();
 
-    TouristLocation? GetById(int id);
+    Task<TouristLocation?> GetByIdAsync(int id);
 
     Task<TouristLocation> AddAsync(
         string name,
         string city,
-        string description);
+        string description,
+        double? latitude,
+        double? longitude);
 }

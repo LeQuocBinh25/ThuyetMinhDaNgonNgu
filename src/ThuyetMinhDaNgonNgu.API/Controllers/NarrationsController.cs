@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ThuyetMinhDaNgonNgu.API.DTOs.Requests;
 using ThuyetMinhDaNgonNgu.API.DTOs.Responses;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
@@ -17,17 +18,18 @@ public sealed class NarrationsController : ControllerBase
     }
 
     [HttpPost]
+    [EnableRateLimiting("Narration")]
     [ProducesResponseType(typeof(NarrationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<NarrationResponse>> Create(
-    [FromBody] CreateNarrationRequest request)
+        [FromBody] CreateNarrationRequest request)
     {
         try
         {
             var result = await _service.CreateNarrationAsync(
-    request.LocationId,
-    request.LanguageCode);
+                request.LocationId,
+                request.LanguageCode);
             var response = new NarrationResponse(
                 result.Id,
                 result.LocationId,
@@ -37,7 +39,9 @@ public sealed class NarrationsController : ControllerBase
                 result.Text,
                 result.AudioUrl,
                 result.Status,
-                result.CreatedAtUtc);
+                result.CreatedAtUtc,
+                result.UpdatedAtUtc,
+                result.IsCached);
 
             return Ok(response);
         }

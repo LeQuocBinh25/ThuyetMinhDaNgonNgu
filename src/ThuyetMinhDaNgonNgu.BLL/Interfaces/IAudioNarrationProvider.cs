@@ -1,6 +1,8 @@
+using ThuyetMinhDaNgonNgu.BLL.Models;
+
 namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;
 
 public interface IAudioNarrationProvider
 {
-    Task<byte[]> GenerateAudioAsync(string text);
+    Task<GeneratedAudio> GenerateAudioAsync(string text, string languageCode);
 }

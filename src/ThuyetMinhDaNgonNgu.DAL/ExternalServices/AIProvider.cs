@@ -26,10 +26,7 @@ public class AIProvider : IAiNarrationProvider
             ?? throw new InvalidOperationException(
                 "Chưa cấu hình Gemini:ApiKey.");
 
-        string model = _configuration["Gemini:Model"]
-            ?? "gemini-3.8-flash";
-
-        Console.WriteLine($"Gemini model đang gọi: {model}");
+        string model = _configuration["Gemini:Model"] ?? "gemini-2.5-flash";
 
         string language = languageCode.ToLower() switch
         {
@@ -39,12 +36,11 @@ public class AIProvider : IAiNarrationProvider
             "ko" => "Korean",
             "fr" => "French",
             "zh" => "Chinese",
-            _ => throw new ArgumentException(
-                "Ngôn ngữ chưa được hỗ trợ.")
+            _ => languageCode
         };
 
         string prompt = $"""
-            Write a clear and engaging tourist narration in {language}.
+            Write a clear and engaging tourist narration in {language} (language code: {languageCode}).
             Location: {locationName}
             Description: {description}
             Only return the narration text.

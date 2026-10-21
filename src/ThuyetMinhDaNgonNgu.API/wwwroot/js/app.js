@@ -32,62 +32,8 @@ const clearHistoryButton = document.getElementById("clearHistory");
 let locations = [];
 let languages = [];
 let vietGuideMap = null;
-
 let featuredMarkers = [];
-
-const featuredPlaces = [
-    {
-        name: "Bảo tàng Hồ Chí Minh - Bến Nhà Rồng",
-        position: [10.7688, 106.7068],
-        description: "Tìm hiểu về cuộc đời và sự nghiệp của Chủ tịch Hồ Chí Minh."
-    },
-    {
-        name: "Công viên Sáng Tạo",
-        position: [10.7725, 106.7256],
-        description: "Không gian công cộng tại khu vực Thủ Thiêm."
-    },
-    {
-        name: "Landmark 81",
-        position: [10.7950, 106.7218],
-        description: "Tòa nhà biểu tượng bên bờ sông Sài Gòn."
-    },
-    {
-        name: "Bitexco Financial Tower",
-        position: [10.7717, 106.7042],
-        description: "Tòa nhà nổi bật tại trung tâm TP.HCM."
-    },
-    {
-        name: "Phố đi bộ Bùi Viện",
-        position: [10.7678, 106.6934],
-        description: "Khu phố sôi động với nhiều hoạt động về đêm."
-    },
-    {
-        name: "Phố đi bộ Nguyễn Huệ",
-        position: [10.7740, 106.7030],
-        description: "Phố đi bộ nổi tiếng ở trung tâm thành phố."
-    },
-    {
-        name: "Bảo tàng Chứng tích Chiến tranh",
-        position: [10.7798, 106.6920],
-        description: "Nơi trưng bày tư liệu và hiện vật lịch sử chiến tranh."
-    },
-    {
-        name: "Bảo tàng Phụ nữ Nam Bộ",
-        position: [10.7900, 106.6900],
-        description: "Tìm hiểu lịch sử và văn hóa phụ nữ Nam Bộ."
-    },
-    {
-        name: "Chợ Bến Thành",
-        position: [10.7725, 106.6980],
-        description: "Địa điểm mua sắm và khám phá ẩm thực nổi tiếng."
-    },
-    {
-    name: "Dinh Độc Lập",
-    position: [10.7770, 106.6953],
-    description: "Di tích lịch sử nổi tiếng, gắn liền với sự kiện ngày 30/4/1975."
-}
-];
-
+const featuredPlaces = [];
 
 // ======================================================
 // 2. HAM HO TRO
@@ -858,13 +804,13 @@ function initVietGuideMap() {
     if (vietGuideMap) return;
 
     vietGuideMap = L.map(exploreMap, {
-        center: [10.7769, 106.7009],
-        zoom: 11,
-        minZoom: 10,
+        center: [16.0, 107.5],
+        zoom: 5,
+        minZoom: 4,
         maxZoom: 18,
         maxBounds: [
-            [10.35, 106.30],
-            [11.20, 107.10]
+            [7.5, 101.5],
+            [24.0, 112.0]
         ],
         maxBoundsViscosity: 0.8
     });
@@ -928,64 +874,6 @@ function getLocationCoordinates(location) {
             longitude <= 180
         ) {
             return [latitude, longitude];
-        }
-    }
-
-    // Tọa độ dự phòng cho một số địa điểm phổ biến.
-    // Nên bổ sung latitude/longitude thật trong dữ liệu API.
-    const name = (
-        getLocationName(location) + " " +
-        getFirstValue(location, ["city", "province", "cityName"], "")
-    ).toLowerCase();
-
-    const knownPlaces = [
-        {
-            keywords: ["hồ chí minh", "ho chi minh", "sài gòn", "saigon"],
-            coordinates: [10.8231, 106.6297]
-        },
-        {
-            keywords: ["hà nội", "ha noi", "hanoi"],
-            coordinates: [21.0278, 105.8342]
-        },
-        {
-            keywords: ["đà nẵng", "da nang", "danang"],
-            coordinates: [16.0544, 108.2022]
-        },
-        {
-            keywords: ["huế", "hue"],
-            coordinates: [16.4637, 107.5909]
-        },
-        {
-            keywords: ["hội an", "hoi an"],
-            coordinates: [15.8801, 108.338]
-        },
-        {
-            keywords: ["đà lạt", "da lat", "dalat"],
-            coordinates: [11.9404, 108.4583]
-        },
-        {
-            keywords: ["phú quốc", "phu quoc"],
-            coordinates: [10.2899, 103.984]
-        },
-        {
-            keywords: ["hạ long", "ha long"],
-            coordinates: [20.9517, 107.0802]
-        },
-        {
-            keywords: ["nha trang"],
-            coordinates: [12.2388, 109.1967]
-        },
-        {
-            keywords: ["cần thơ", "can tho"],
-            coordinates: [10.0452, 105.7469]
-        }
-    ];
-
-    for (const place of knownPlaces) {
-        if (
-            place.keywords.some((keyword) => name.includes(keyword))
-        ) {
-            return place.coordinates;
         }
     }
 
@@ -1124,26 +1012,6 @@ function refreshVietGuideMap() {
 
         if (!coordinates) return;
 
-        // Chỉ hiển thị địa điểm nằm trong vùng bản đồ TP.HCM.
-        const [lat, lng] = coordinates;
-
-        if (
-            lat < 10.35 || lat > 11.20 ||
-            lng < 106.30 || lng > 107.10
-        ) {
-            return;
-        }
-
-        // Tránh đặt ghim API trùng vị trí với ghim cố định.
-        const duplicateFeatured = featuredPlaces.some((place) => {
-            const latDiff = Math.abs(place.position[0] - lat);
-            const lngDiff = Math.abs(place.position[1] - lng);
-
-            return latDiff < 0.0015 && lngDiff < 0.0015;
-        });
-
-        if (duplicateFeatured) return;
-
         const marker = L.marker(coordinates).addTo(vietGuideMap);
 
         const popup = document.createElement("div");
@@ -1175,15 +1043,13 @@ function refreshVietGuideMap() {
         }
     });
 
-    const totalMarkers = featuredMarkers.length + vietGuideMarkers.length;
-
+    const withoutCoordinates = locations.length - vietGuideMarkers.length;
     setMapMessage(
-        `Bản đồ TP.HCM có ${featuredMarkers.length} địa điểm nổi bật và ${vietGuideMarkers.length} địa điểm từ dữ liệu hệ thống.`
+        `Bản đồ hiển thị ${vietGuideMarkers.length} địa điểm có tọa độ trong dữ liệu hệ thống.` +
+        (withoutCoordinates > 0
+            ? ` ${withoutCoordinates} địa điểm chưa có tọa độ nên chỉ có trong danh sách.`
+            : "")
     );
-
-    console.log("Số ghim địa điểm nổi bật:", featuredMarkers.length);
-    console.log("Số ghim từ API:", vietGuideMarkers.length);
-    console.log("Tổng số ghim:", totalMarkers);
 }
 
 

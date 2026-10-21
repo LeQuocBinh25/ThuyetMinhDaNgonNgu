@@ -1,6 +1,5 @@
 namespace ThuyetMinhDaNgonNgu.DAL.Entities;
 
-/// <summary>Entity lưu thông tin địa điểm trong bảng Locations của SQLite.</summary>
 public sealed class LocationEntity
 {
     public int Id { get; set; }
@@ -10,4 +9,8 @@ public sealed class LocationEntity
     public string City { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
+
+    public double? Latitude { get; set; }
+
+    public double? Longitude { get; set; }
 }
