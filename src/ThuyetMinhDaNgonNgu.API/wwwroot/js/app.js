@@ -32,6 +32,7 @@ const clearHistoryButton = document.getElementById("clearHistory");
 let locations = [];
 let languages = [];
 let vietGuideMap = null;
+let vietGuideMarkers = [];
 let featuredMarkers = [];
 const featuredPlaces = [];
 
