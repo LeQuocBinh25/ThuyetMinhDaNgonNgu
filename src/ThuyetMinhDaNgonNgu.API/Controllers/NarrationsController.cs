@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
 using ThuyetMinhDaNgonNgu.API.DTOs.Requests;
 using ThuyetMinhDaNgonNgu.API.DTOs.Responses;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
@@ -12,10 +13,14 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers;
 public sealed class NarrationsController : ControllerBase
 {
     private readonly INarrationService _service;
+    private readonly ILogger<NarrationsController> _logger;
 
-    public NarrationsController(INarrationService service)
+    public NarrationsController(
+        INarrationService service,
+        ILogger<NarrationsController> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -57,6 +62,13 @@ public sealed class NarrationsController : ControllerBase
         catch (ProviderConfigurationException exception)
         {
             return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = exception.Message });
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "A narration provider rejected the request.");
+            return StatusCode(
+                StatusCodes.Status502BadGateway,
+                new { message = "Không thể tạo hoặc lưu audio thuyết minh. Vui lòng thử lại sau." });
         }
     }
 }

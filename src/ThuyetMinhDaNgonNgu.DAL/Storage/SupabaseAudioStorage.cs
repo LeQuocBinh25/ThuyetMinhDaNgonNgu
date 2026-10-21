@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
 using ThuyetMinhDaNgonNgu.BLL.Models;
@@ -40,8 +41,12 @@ public sealed class SupabaseAudioStorage : IAudioStorage
 
         if (!response.IsSuccessStatusCode)
         {
+            string responseBody = await response.Content.ReadAsStringAsync();
             throw new HttpRequestException(
-                $"Supabase Storage upload failed with HTTP {(int)response.StatusCode}.");
+                $"Supabase Storage upload failed with HTTP {(int)response.StatusCode}: " +
+                GetErrorDetail(responseBody),
+                inner: null,
+                response.StatusCode);
         }
 
     }
@@ -97,4 +102,29 @@ public sealed class SupabaseAudioStorage : IAudioStorage
 
     private static string EncodeObjectPath(string objectPath) =>
         string.Join('/', objectPath.Split('/').Select(Uri.EscapeDataString));
+
+    private static string GetErrorDetail(string responseBody)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(responseBody);
+            foreach (string propertyName in new[] { "message", "error", "error_description" })
+            {
+                if (document.RootElement.TryGetProperty(propertyName, out var value) &&
+                    value.ValueKind == JsonValueKind.String)
+                {
+                    return Truncate(value.GetString() ?? string.Empty);
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            return "Supabase Storage returned a non-JSON error response.";
+        }
+
+        return "Supabase Storage did not provide an error message.";
+    }
+
+    private static string Truncate(string value) =>
+        value.Length <= 500 ? value : value[..500];
 }

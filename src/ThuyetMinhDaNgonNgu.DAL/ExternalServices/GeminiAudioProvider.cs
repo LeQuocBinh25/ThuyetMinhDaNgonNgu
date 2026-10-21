@@ -130,14 +130,6 @@ public class GeminiAudioProvider : IAudioNarrationProvider
             throw new InvalidOperationException("Gemini trả về dữ liệu PCM không hợp lệ.");
         }
 
-        if (mimeType.StartsWith("audio/L16", StringComparison.OrdinalIgnoreCase))
-        {
-            for (int i = 0; i < bytes.Length; i += 2)
-            {
-                (bytes[i], bytes[i + 1]) = (bytes[i + 1], bytes[i]);
-            }
-        }
-
         const short channels = 1;
         const short bitsPerSample = 16;
         int byteRate = sampleRate * channels * bitsPerSample / 8;

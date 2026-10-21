@@ -5,6 +5,8 @@ namespace ThuyetMinhDaNgonNgu.BLL.Services;
 
 public sealed class NarrationService : INarrationService
 {
+    private const string CurrentAudioPathPrefix = "narrations/v2/";
+
     private readonly ILocationRepository _locations;
     private readonly ILanguageRepository _languages;
     private readonly INarrationRepository _narrations;
@@ -37,6 +39,7 @@ public sealed class NarrationService : INarrationService
 
         if (current is not null &&
             !string.IsNullOrWhiteSpace(current.Text) &&
+            current.AudioObjectPath.StartsWith(CurrentAudioPathPrefix, StringComparison.Ordinal) &&
             await _audioStorage.ExistsAsync(current.AudioObjectPath))
         {
             return ToResult(current, isCached: true);
@@ -147,7 +150,7 @@ public sealed class NarrationService : INarrationService
         }
 
         var audio = await _audioProvider.GenerateAudioAsync(text, language.Code);
-        string objectPath = $"narrations/{location.Id}/{Guid.NewGuid():N}{audio.Extension}";
+        string objectPath = $"{CurrentAudioPathPrefix}{location.Id}/{Guid.NewGuid():N}{audio.Extension}";
         await _audioStorage.UploadAsync(objectPath, audio);
 
         var now = DateTimeOffset.UtcNow;

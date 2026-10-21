@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
 using ThuyetMinhDaNgonNgu.API.DTOs.Requests;
 using ThuyetMinhDaNgonNgu.API.DTOs.Responses;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
@@ -11,7 +12,9 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers;
 [ApiController]
 [Authorize(Roles = "Admin")]
 [Route("api/admin/narrations")]
-public sealed class AdminNarrationsController(IAdminNarrationService service) : ControllerBase
+public sealed class AdminNarrationsController(
+    IAdminNarrationService service,
+    ILogger<AdminNarrationsController> logger) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<NarrationResponse>>> GetAll() =>
@@ -47,6 +50,13 @@ public sealed class AdminNarrationsController(IAdminNarrationService service) : 
         {
             return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = exception.Message });
         }
+        catch (HttpRequestException exception)
+        {
+            logger.LogError(exception, "An external provider rejected the admin draft request.");
+            return StatusCode(
+                StatusCodes.Status502BadGateway,
+                new { message = "Không thể tạo bản nháp từ dịch vụ AI. Vui lòng thử lại sau." });
+        }
     }
 
     [HttpPut("{locationId:int}/{languageCode}")]
@@ -71,6 +81,13 @@ public sealed class AdminNarrationsController(IAdminNarrationService service) : 
         catch (ProviderConfigurationException exception)
         {
             return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = exception.Message });
+        }
+        catch (HttpRequestException exception)
+        {
+            logger.LogError(exception, "An external provider rejected the admin narration publish request.");
+            return StatusCode(
+                StatusCodes.Status502BadGateway,
+                new { message = "Không thể tạo hoặc lưu audio thuyết minh. Vui lòng thử lại sau." });
         }
     }
 

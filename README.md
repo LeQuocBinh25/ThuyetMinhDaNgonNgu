@@ -51,7 +51,7 @@ Launch profile giữ nguyên HTTPS `https://localhost:7138` và HTTP `http://loc
 
 ## PostgreSQL schema và migrations
 
-`Program.cs` chạy `Database.MigrateAsync()` trước khi phục vụ HTTP requests. Migration hiện tại tạo `Narrations`, unique constraint trên `(LocationId, LanguageCode)` và hai cột tọa độ nullable cho `Locations`; dữ liệu `Locations`/`Languages` hiện có không bị xóa hay dựng lại. Seed chỉ thêm dữ liệu mẫu khi bảng tương ứng trống, bổ sung tọa độ cho các địa danh mẫu đã biết khi tọa độ còn thiếu, và đồng bộ identity sequence sau các ID seed tường minh.
+`Program.cs` chạy `Database.MigrateAsync()` trước khi phục vụ HTTP requests. Migration hiện tại tạo `Narrations`, unique constraint trên `(LocationId, LanguageCode)` và hai cột tọa độ nullable cho `Locations`; dữ liệu `Locations`/`Languages` hiện có không bị xóa hay dựng lại. Seed chỉ thêm dữ liệu mẫu khi bảng tương ứng trống, bổ sung tọa độ cho các địa danh mẫu đã biết khi tọa độ còn thiếu, và đồng bộ identity sequence sau các ID seed tường minh. Audio WAV được tạo theo PCM little-endian và lưu dưới prefix phiên bản `narrations/v2/`; bản audio cũ sẽ được dựng lại từ văn bản đã lưu khi được yêu cầu sau deploy.
 
 Để tạo migration tiếp theo:
 
