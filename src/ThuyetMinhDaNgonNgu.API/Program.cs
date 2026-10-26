@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using ThuyetMinhDaNgonNgu.DAL.ExternalServices;
 using Microsoft.EntityFrameworkCore;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
@@ -6,39 +5,57 @@ using ThuyetMinhDaNgonNgu.BLL.Services;
 using ThuyetMinhDaNgonNgu.DAL.Persistence;
 using ThuyetMinhDaNgonNgu.DAL.Repositories;
 using ThuyetMinhDaNgonNgu.DAL.SeedData;
+using ThuyetMinhDaNgonNgu.DAL.Storage;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.Threading.RateLimiting;
+using System.Security.Cryptography;
+using ThuyetMinhDaNgonNgu.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddProblemDetails();
 
-// Resolve the SQLite database path relative to the API project, not the shell's working directory.
-var configuredConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Data Source=App_Data/multilingual-narration.db";
-var sqliteConnectionString = new SqliteConnectionStringBuilder(configuredConnectionString);
-if (!Path.IsPathRooted(sqliteConnectionString.DataSource))
+// Supabase
+var connectionString =
+    builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (string.IsNullOrWhiteSpace(connectionString))
 {
-    sqliteConnectionString.DataSource = Path.GetFullPath(
-        Path.Combine(builder.Environment.ContentRootPath, sqliteConnectionString.DataSource));
+    throw new InvalidOperationException(
+        "Chưa cấu hình ConnectionStrings:DefaultConnection.");
 }
 
-var databaseDirectory = Path.GetDirectoryName(sqliteConnectionString.DataSource);
-if (!string.IsNullOrWhiteSpace(databaseDirectory))
-{
-    Directory.CreateDirectory(databaseDirectory);
-}
+connectionString = PostgresConnectionString.Normalize(connectionString);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(sqliteConnectionString.ConnectionString));
+    options.UseNpgsql(connectionString, postgres =>
+    {
+        postgres.CommandTimeout(30);
+        postgres.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
+    }));
 
-// Data Access Layer: repository implementations now use SQLite instead of in-memory lists.
-builder.Services.AddScoped<ILocationRepository, SqliteLocationRepository>();
-builder.Services.AddScoped<ILanguageRepository, SqliteLanguageRepository>();
+builder.Services.AddScoped<ILocationRepository, PostgresLocationRepository>();
+builder.Services.AddScoped<ILanguageRepository, PostgresLanguageRepository>();
+builder.Services.AddScoped<INarrationRepository, PostgresNarrationRepository>();
+builder.Services.AddHttpClient<IAudioStorage, SupabaseAudioStorage>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(3);
+});
 
 // Business Logic Layer.
 builder.Services.AddScoped<ILocationService, LocationService>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
 builder.Services.AddScoped<INarrationService, NarrationService>();
+builder.Services.AddScoped<IAdminNarrationService, AdminNarrationService>();
+
+// Module mở rộng tránh conflict khi nhiều thành viên cùng phát triển
+builder.Services.AddAnalyticsModule(builder.Configuration);
+builder.Services.AddManagementModule(builder.Configuration);
 
 
 builder.Services.AddHttpClient<IAiNarrationProvider, AIProvider>(client =>
@@ -50,16 +67,71 @@ builder.Services.AddHttpClient<IAudioNarrationProvider, GeminiAudioProvider>(cli
 {
     client.Timeout = TimeSpan.FromMinutes(3);
 });
-builder.Services.AddSingleton<ILanguageRepository, InMemoryLanguageRepository>();
-builder.Services.AddSingleton<ILocationRepository, InMemoryLocationRepository>();
+
+string? configuredSigningKey = builder.Configuration["Jwt:SigningKey"];
+if (!string.IsNullOrWhiteSpace(configuredSigningKey) &&
+    Encoding.UTF8.GetByteCount(configuredSigningKey) < 32)
+{
+    throw new InvalidOperationException("Jwt:SigningKey phải có tối thiểu 32 byte.");
+}
+
+string signingKey = configuredSigningKey
+    ?? Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+
+string jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "VietGuide";
+string jwtAudience = builder.Configuration["Jwt:Audience"] ?? "VietGuideAdmin";
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtIssuer,
+            ValidateAudience = true,
+            ValidAudience = jwtAudience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            RoleClaimType = System.Security.Claims.ClaimTypes.Role,
+            NameClaimType = System.Security.Claims.ClaimTypes.Name
+        };
+    });
+builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("Narration", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("AdminLogin", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(5),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
+
 var app = builder.Build();
 
-
-// Create the database and seed sample data only when each table is empty.
+// Apply versioned schema changes and seed only missing sample data.
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    DatabaseSeeder.Initialize(dbContext);
+    await dbContext.Database.MigrateAsync();
+    await DatabaseSeeder.InitializeAsync(dbContext);
 }
 
 if (app.Environment.IsDevelopment())
@@ -69,6 +141,10 @@ if (app.Environment.IsDevelopment())
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseHttpsRedirection();
+app.UseExceptionHandler();
+app.UseRouting();
+app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

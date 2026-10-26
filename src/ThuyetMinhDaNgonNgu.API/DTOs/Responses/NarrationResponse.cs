@@ -9,4 +9,6 @@ public sealed record NarrationResponse(
     string Text,
     string? AudioUrl,
     string Status,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc,
+    bool IsCached);

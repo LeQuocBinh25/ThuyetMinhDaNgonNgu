@@ -4,9 +4,9 @@ namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;
 
 public interface ILanguageRepository
 {
-    IReadOnlyList<SupportedLanguage> GetAll();
+    Task<IReadOnlyList<SupportedLanguage>> GetAllAsync();
 
-    SupportedLanguage? GetByCode(string code);
+    Task<SupportedLanguage?> GetByCodeAsync(string code);
 
-    bool TryAdd(SupportedLanguage language);
+    Task<bool> TryAddAsync(SupportedLanguage language);
 }

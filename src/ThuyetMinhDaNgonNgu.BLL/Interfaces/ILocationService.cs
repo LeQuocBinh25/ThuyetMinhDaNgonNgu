@@ -1,10 +1,18 @@
+
 using ThuyetMinhDaNgonNgu.BLL.Models;
 
 namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;
 
 public interface ILocationService
 {
-    IReadOnlyList<TouristLocation> GetAll();
+    Task<IReadOnlyList<TouristLocation>> GetAllAsync();
 
-    TouristLocation? GetById(int id);
+    Task<TouristLocation?> GetByIdAsync(int id);
+
+    Task<TouristLocation> AddAsync(
+        string name,
+        string city,
+        string description,
+        double? latitude,
+        double? longitude);
 }

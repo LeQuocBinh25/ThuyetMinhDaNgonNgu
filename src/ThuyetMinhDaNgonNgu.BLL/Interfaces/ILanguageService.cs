@@ -4,7 +4,7 @@ namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;
 
 public interface ILanguageService
 {
-    IReadOnlyList<SupportedLanguage> GetAll();
+    Task<IReadOnlyList<SupportedLanguage>> GetAllAsync();
 
-    SupportedLanguage? Add(string code, string name);
+    Task<SupportedLanguage?> AddAsync(string code, string name);
 }
