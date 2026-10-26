@@ -1,117 +1,267 @@
-# VietGuide — Thuyết minh du lịch đa ngôn ngữ
+# VietGuide — Hệ thống Thuyết minh Du lịch Đa ngôn ngữ
 
-Ứng dụng ASP.NET Core .NET 10 gồm ba project API/BLL/DAL, giao diện HTML/CSS/JavaScript, PostgreSQL trên Supabase, Gemini cho nội dung và audio, Supabase Storage cho audio đã công bố. API chạy cùng frontend tĩnh trên Render.
+Tài liệu hướng dẫn phát triển và xây dựng hệ thống bám sát **Đặc tả yêu cầu sản phẩm (PRD - Product Requirements Document)** và phân công chi tiết cho nhóm 3 thành viên phát triển đồng thời không xung đột mã nguồn.
 
-## Cấu hình
+---
 
-Không lưu connection string, Gemini API key, Supabase service role key, mật khẩu Admin hoặc JWT signing key trong Git. Có thể cấu hình bằng environment variables (Render) hoặc .NET User Secrets (máy local).
+## 1. Tổng quan Dự án & Kiến trúc
 
-| Environment variable | Mục đích |
-|---|---|
-| `ConnectionStrings__DefaultConnection` | Connection string PostgreSQL Supabase hiện đang dùng. Giữ nguyên endpoint/kiểu kết nối đã xác nhận hoạt động; ứng dụng dùng Npgsql và SSL theo connection string đó. |
-| `Gemini__ApiKey` | Gemini API key phía Backend |
-| `Gemini__Model` | Model sinh nội dung; mặc định `gemini-3.8-flash` |
-| `Gemini__TtsModel` | Model TTS; mặc định `gemini-2.5-flash-preview-tts` |
-| `Supabase__Url` | URL project Supabase |
-| `Supabase__ServiceRoleKey` | Service role key chỉ dùng phía Backend |
-| `Supabase__AudioBucket` | Tên bucket; mặc định `narration-audio` |
-| `Admin__Username` | Tên đăng nhập Admin |
-| `Admin__Password` | Mật khẩu Admin |
-| `Jwt__SigningKey` | Secret ký JWT, tối thiểu 32 byte |
-| `Jwt__Issuer` | Issuer, mặc định `VietGuide` |
-| `Jwt__Audience` | Audience, mặc định `VietGuideAdmin` |
+Hệ thống cung cấp giải pháp thuyết minh du lịch tự động đa ngôn ngữ cho khách tham quan qua nền tảng Web, kết hợp định vị GPS, bản đồ tương tác, tổng hợp giọng nói AI và bảng điều khiển quản trị tập trung.
 
-`ConnectionStrings__DefaultConnection` phải là **PostgreSQL connection string**, không phải `Supabase__Url` (URL HTTPS của project). Ứng dụng chấp nhận dạng `Host=...;Port=5432;Database=postgres;Username=...;Password=...;SSL Mode=Require` hoặc URI PostgreSQL do Supabase cấp dạng `postgresql://username:password@host:5432/database?sslmode=require`. Nếu mật khẩu có ký tự đặc biệt trong URI, phải URL-encode theo định dạng URI; dạng `Host=...` thường dễ nhập chính xác hơn.
+### 1.1. Công nghệ chính
+- **Backend**: ASP.NET Core (.NET 10) theo kiến trúc 3 lớp phân tách nghiêm ngặt:
+  - `ThuyetMinhDaNgonNgu.API`: Tiếp nhận HTTP Request, DTOs, xác thực JWT, phân quyền, rate limiting.
+  - `ThuyetMinhDaNgonNgu.BLL`: Thực thi nghiệp vụ, kiểm tra tính hợp lệ (BR-01 → BR-21), điều phối AI & Storage, tổng hợp thống kê.
+  - `ThuyetMinhDaNgonNgu.DAL`: Truy xuất PostgreSQL (Supabase) qua EF Core, Adapter Gemini AI & Supabase Storage.
+- **Cơ sở dữ liệu & Lưu trữ**:
+  - **Supabase PostgreSQL**: Lưu trữ địa điểm, ngôn ngữ, nội dung thuyết minh và dữ liệu sự kiện thống kê.
+  - **Supabase Storage**: Bucket âm thanh ở chế độ **Private**, chỉ Backend thao tác bằng `ServiceRoleKey`.
+- **Dịch vụ AI**:
+  - Sinh nội dung văn bản: `Gemini 3.8 Flash`.
+  - Chuyển văn bản thành giọng nói (TTS): `Gemini TTS API` (hoặc `gemini-2.5-flash-preview-tts`).
+- **Frontend**: Vanilla HTML5, CSS3, JavaScript (ES6+), Leaflet Map API, Web Geolocation API.
+- **Môi trường triển khai**: Render (Docker container).
 
-Ví dụ đặt secret local (thay giá trị bằng secret của môi trường riêng; không đưa giá trị thật vào source):
+### 1.2. Các Quyết định Nghiệp vụ Bắt buộc (PRD Phụ lục A & B)
+1. **Cửa sổ chống đếm trùng truy cập (`AD01`)**: **30 phút**.
+2. **Tiêu chuẩn tính lượt phát thuyết minh (`AD02 - AD05`)**: Chỉ tính là 1 lượt phát hợp lệ khi khách nghe đạt thời lượng tối thiểu **15 giây**.
+3. **Mô hình bản ghi thuyết minh**: Mỗi cặp `(LocationId, LanguageCode)` chỉ lưu **1 bản ghi hiện hành** duy nhất.
+4. **Bảo mật âm thanh**: Bucket Storage luôn ở chế độ **Private**. Không public bucket ra ngoài Internet; cung cấp URL có chữ ký ngắn hạn (Signed URL) hoặc proxy qua Backend.
+5. **Loại trừ phạm vi (Out of Scope - Mục 1.5.5)**: Tính năng *"Lưu lịch sử nghe riêng cho từng khách"* **không thuộc phạm vi** của dự án; không triển khai và phải dọn bỏ mã nguồn liên quan.
+
+---
+
+## 2. Cấu hình Môi trường & Chạy Local
+
+### 2.1. Biến môi trường
+
+| Tên biến | Bắt buộc | Mục đích |
+|---|:---:|---|
+| `ConnectionStrings__DefaultConnection` | **Có** | Connection string Supabase PostgreSQL (`Host=...;Database=postgres;...;SSL Mode=Require`) |
+| `Gemini__ApiKey` | Khuyến nghị | API key Gemini cho sinh nội dung và TTS |
+| `Gemini__Model` | Tùy chọn | Model AI văn bản (mặc định: `gemini-3.8-flash`) |
+| `Gemini__TtsModel` | Tùy chọn | Model AI giọng nói (mặc định: `gemini-2.5-flash-preview-tts`) |
+| `Supabase__Url` | Khuyến nghị | URL HTTPS của project Supabase |
+| `Supabase__ServiceRoleKey` | Khuyến nghị | Service role key Supabase (chỉ dùng phía Backend) |
+| `Supabase__AudioBucket` | Tùy chọn | Tên bucket âm thanh (mặc định: `narration-audio`) |
+| `Admin__Username` | Khuyến nghị | Tên đăng nhập Admin |
+| `Admin__Password` | Khuyến nghị | Mật khẩu Admin |
+| `Jwt__SigningKey` | Khuyến nghị | Khóa bí mật ký JWT (tối thiểu 32 byte) |
+| `Jwt__Issuer` | Tùy chọn | Issuer JWT (mặc định: `VietGuide`) |
+| `Jwt__Audience` | Tùy chọn | Audience JWT (mặc định: `VietGuideAdmin`) |
+
+### 2.2. Thiết lập Secret trên máy Local (.NET User Secrets)
 
 ```powershell
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<connection-string-Supabase>"
-dotnet user-secrets set "Gemini:ApiKey" "<Gemini-API-key>"
-dotnet user-secrets set "Supabase:Url" "<Supabase-project-URL>"
-dotnet user-secrets set "Supabase:ServiceRoleKey" "<Supabase-service-role-key>"
-dotnet user-secrets set "Admin:Username" "<admin-username>"
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<supabase-postgres-connection-string>"
+dotnet user-secrets set "Gemini:ApiKey" "<gemini-api-key>"
+dotnet user-secrets set "Supabase:Url" "https://<your-project>.supabase.co"
+dotnet user-secrets set "Supabase:ServiceRoleKey" "<supabase-service-role-key>"
+dotnet user-secrets set "Admin:Username" "admin"
 dotnet user-secrets set "Admin:Password" "<strong-admin-password>"
-dotnet user-secrets set "Jwt:SigningKey" "<random-secret-at-least-32-bytes>"
+dotnet user-secrets set "Jwt:SigningKey" "<at-least-32-characters-secret-key>"
 ```
 
-`Supabase__ServiceRoleKey` không được đưa vào HTML/JavaScript. API upload/delete audio bằng key này. Tạo bucket `narration-audio` trong Supabase Storage và bật public read cho bucket để trình duyệt phát audio bằng `AudioUrl`; không cấp quyền upload/delete cho `anon` hoặc `authenticated`. Ứng dụng chỉ lưu object path, MIME type và metadata trong PostgreSQL, không ghi audio vào filesystem Render.
-
-`Gemini__ApiKey`, `Supabase__Url`, `Supabase__ServiceRoleKey`, `Admin__Username`, `Admin__Password` và `Jwt__SigningKey` không bắt buộc để khởi động ứng dụng hoặc tải danh sách địa điểm/ngôn ngữ. Kết nối PostgreSQL (`ConnectionStrings__DefaultConnection`) vẫn bắt buộc. Nếu thiếu Gemini key, endpoint tạo thuyết minh/trình tạo nháp trả `503 Service Unavailable`; nếu thiếu cấu hình Storage, thao tác tạo audio không thể lưu. Admin cần đủ các cấu hình Admin/JWT nêu trên để đăng nhập; khi thiếu signing key, server dùng key ngẫu nhiên chỉ trong tiến trình hiện tại nên không phát hành token Admin dùng được. Để bật đầy đủ AI, audio online và Admin local, đặt các secret bằng User Secrets hoặc biến môi trường.
-
-## Chạy local
+### 2.3. Khởi chạy ứng dụng
 
 ```powershell
+# Restore và build
 dotnet restore .\ThuyetMinhDaNgonNgu.sln
 dotnet build .\ThuyetMinhDaNgonNgu.sln
+
+# Chạy ứng dụng API & Frontend tĩnh
 dotnet run --launch-profile https --project .\src\ThuyetMinhDaNgonNgu.API\ThuyetMinhDaNgonNgu.API.csproj
 ```
+- Truy cập giao diện Khách: `https://localhost:7138/index.html`
+- Truy cập giao diện Quản trị: `https://localhost:7138/admin.html`
 
-Launch profile giữ nguyên HTTPS `https://localhost:7138` và HTTP `http://localhost:5094`. Khi kết nối PostgreSQL hoặc áp dụng migration không thành công, API dừng khi khởi động thay vì trả dữ liệu thành công giả.
+---
 
-## PostgreSQL schema và migrations
+## 3. Chiến lược Phối hợp Nhóm 3 Người (Zero-Conflict Protocol)
 
-`Program.cs` chạy `Database.MigrateAsync()` trước khi phục vụ HTTP requests. Migration hiện tại tạo `Narrations`, unique constraint trên `(LocationId, LanguageCode)` và hai cột tọa độ nullable cho `Locations`; dữ liệu `Locations`/`Languages` hiện có không bị xóa hay dựng lại. Seed chỉ thêm dữ liệu mẫu khi bảng tương ứng trống, bổ sung tọa độ cho các địa danh mẫu đã biết khi tọa độ còn thiếu, và đồng bộ identity sequence sau các ID seed tường minh. Audio WAV được tạo theo PCM little-endian và lưu dưới prefix phiên bản `narrations/v2/`; bản audio cũ sẽ được dựng lại từ văn bản đã lưu khi được yêu cầu sau deploy.
+Để 3 thành viên cùng làm việc mà **hoàn toàn không bị đụng code (merge conflict)**:
 
-Để tạo migration tiếp theo:
-
-```powershell
-$env:ConnectionStrings__DefaultConnection = "<connection-string-Supabase>"
-dotnet ef migrations add <MigrationName> --project .\src\ThuyetMinhDaNgonNgu.DAL\ThuyetMinhDaNgonNgu.DAL.csproj --startup-project .\src\ThuyetMinhDaNgonNgu.API\ThuyetMinhDaNgonNgu.API.csproj
+```
+[Nhánh main]
+    │
+    ├── Giai đoạn 0: Thành viên 2 tạo Migration Database cơ sở ──> Merge vào main
+    │
+    ├── Sau khi main đã có DB chuẩn:
+    │     ├── [Branch TV1]: feature/client-experience (CL01 - CL07)
+    │     ├── [Branch TV2]: feature/analytics-events  (AD01 - AD05)
+    │     └── [Branch TV3]: feature/admin-crud-mgmt   (AD06 - AD14)
+    │
+    └── Tạo Pull Request -> Review chéo -> Merge tuần tự vào main
 ```
 
-Trước lần deploy đầu tiên với một database đang có dữ liệu, kiểm tra bảng `"__EFMigrationsHistory"` trong Supabase. Migration ban đầu `20261021005949_InitialPostgresSchema` tạo hai bảng hiện có; **không** để EF chạy migration khởi tạo đó trên các bảng đã được tạo thủ công nếu chưa baseline. Nếu history chưa có migration nhưng `"Locations"` và `"Languages"` đã tồn tại, trước tiên xác minh schema, khóa chính, cột và kiểu dữ liệu của hai bảng khớp chính xác với migration ban đầu trong `src/ThuyetMinhDaNgonNgu.DAL/Persistence/Migrations/20261021005949_InitialPostgresSchema.cs`. Sau khi xác minh và sao lưu, baseline migration ban đầu bằng cách ghi nhận đúng migration đó trong history; không chạy script tạo lại bảng, không xóa/reset dữ liệu. Nếu schema khác, dừng deploy và tạo baseline migration phù hợp sau khi đối chiếu schema thực tế. Các migration mới sẽ được áp dụng tuần tự bởi EF Core.
+### 🛡️ Nguyên tắc vàng tránh xung đột mã nguồn:
+1. **Tuyệt đối không sửa trực tiếp `Program.cs`**:
+   - `Program.cs` đã được gắn sẵn 2 Extension Method:
+     - `builder.Services.AddAnalyticsModule(...)` -> Thành viên 2 chỉ code trong `src/ThuyetMinhDaNgonNgu.API/Extensions/AnalyticsExtensions.cs`.
+     - `builder.Services.AddManagementModule(...)` -> Thành viên 3 chỉ code trong `src/ThuyetMinhDaNgonNgu.API/Extensions/ManagementExtensions.cs`.
+2. **Quản lý Migration EF Core**:
+   - Chỉ **Thành viên 2** phụ trách tạo Migration schema chung cho toàn bộ dự án ở Giai đoạn 0. Sau khi merge vào `main`, các thành viên khác kéo về dùng.
+3. **Phân tách Frontend**:
+   - **Thành viên 1**: Toàn quyền trên `wwwroot/index.html`, `wwwroot/js/app.js`, `wwwroot/css/style.css`.
+   - **Thành viên 2 & 3**: Thao tác trên `admin.html`. Tách JS thành `admin-analytics.js` (Thành viên 2) và `admin-crud.js` (Thành viên 3).
 
-Chỉ khi schema đã được xác minh khớp và history chưa ghi nhận migration ban đầu, có thể baseline bằng SQL sau trong Supabase SQL Editor:
+---
 
-```sql
-CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
-    "MigrationId" character varying(150) NOT NULL,
-    "ProductVersion" character varying(32) NOT NULL,
-    CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
-);
+## 4. Hướng dẫn Chi tiết Cho Từng Thành Viên
 
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
-VALUES ('20261021005949_InitialPostgresSchema', '10.0.13')
-ON CONFLICT ("MigrationId") DO NOTHING;
-```
+### 👤 THÀNH VIÊN 1: Trải nghiệm Khách tham quan & Client Flow
+- **Mã chức năng phụ trách**: `CL01` → `CL07`
+- **Nhánh Git**: `feature/client-experience`
+- **File phụ trách chính**:
+  - `src/ThuyetMinhDaNgonNgu.API/wwwroot/index.html`
+  - `src/ThuyetMinhDaNgonNgu.API/wwwroot/js/app.js`
+  - `src/ThuyetMinhDaNgonNgu.API/wwwroot/css/style.css`
+  - `src/ThuyetMinhDaNgonNgu.API/Controllers/NarrationsController.cs`
 
-Không chạy đoạn baseline chỉ dựa trên việc bảng đã tồn tại; phải kiểm tra đầy đủ schema trước, nếu không migration tiếp theo có thể giả định thiếu/sai cấu trúc hiện có.
+#### Nhiệm vụ cụ thể từng bước:
+1. **Dọn dẹp code ngoài phạm vi (Mục 1.5.5)**:
+   - Xóa bỏ chức năng *"Lịch sử nghe"* (`vietguide_history_v1`, `#history`, `historyList`, `clearHistoryButton`) khỏi `index.html` và `app.js`.
+2. **Triển khai `CL01` (Tự động chọn ngôn ngữ theo trình duyệt)**:
+   - Trong `app.js`, khi tải danh sách ngôn ngữ (`/api/languages`), đọc `navigator.language` (ví dụ: `vi-VN` -> `vi`, `en-US` -> `en`).
+   - Nếu mã ngôn ngữ khớp với ngôn ngữ được hỗ trợ, tự động chọn làm mặc định trên giao diện; nếu không khớp, áp dụng ngôn ngữ mặc định (`vi`).
+3. **Triển khai `CL02` & `CL06` (Chọn ngôn ngữ & địa điểm thủ công)**:
+   - Đảm bảo khi người dùng chủ động chọn ngôn ngữ hoặc địa điểm mới, giao diện lập tức cập nhật phiên hiện tại và không phát nhầm audio cũ (BR-02, BR-04).
+4. **Triển khai `CL03` & `CL05` (Bản đồ Leaflet & Định vị GPS)**:
+   - Sử dụng `navigator.geolocation.getCurrentPosition` khi người dùng nhấn nút *"Tìm địa điểm gần tôi"*.
+   - Áp dụng công thức khoảng cách Haversine so sánh tọa độ GPS người dùng với danh sách địa điểm (`CL05`).
+   - Khi khoảng cách $\le 50m$ (ngưỡng phát hiện), hiển thị thông báo và cho phép kích hoạt phát bài thuyết minh tương ứng.
+   - Xử lý mượt mà khi người dùng từ chối quyền định vị (vẫn cho chọn thủ công bình thường - BR-14).
+5. **Triển khai `CL07` & Lắng nghe mốc 15 giây**:
+   - Sử dụng phần tử `<audio>` để phát bài thuyết minh.
+   - Thêm bộ đếm thời gian: khi audio phát thực tế liên tục đạt **15 giây**, tự động gửi request ghi nhận sự kiện phát:
+     ```http
+     POST /api/playback
+     Content-Type: application/json
+     { "narrationId": "...", "locationId": 1, "languageCode": "vi" }
+     ```
+   - Cũng gửi request ghi nhận phiên truy cập khi người dùng vừa mở trang:
+     ```http
+     POST /api/visits
+     Content-Type: application/json
+     { "visitorToken": "...", "source": "qr_or_web" }
+     ```
 
-## API
+---
 
-| Method | Endpoint | Truy cập | Mô tả |
-|---|---|---|---|
-| GET | `/api/locations` | Public | Địa điểm, gồm `latitude`/`longitude` nullable |
-| GET | `/api/locations/{id}` | Public | Chi tiết địa điểm |
-| POST | `/api/locations` | Admin JWT | Thêm địa điểm |
-| GET | `/api/languages` | Public | Danh sách ngôn ngữ |
-| POST | `/api/languages` | Admin JWT | Thêm ngôn ngữ |
-| POST | `/api/narrations` | Public, giới hạn 5 request/phút/IP | Lấy bản hiện hành hoặc tạo nội dung + audio |
-| POST | `/api/admin/auth/login` | Public, giới hạn đăng nhập | Đăng nhập lấy JWT role `Admin` |
-| GET | `/api/admin/narrations` | Admin JWT | Danh sách bản hiện hành |
-| GET | `/api/admin/narrations/{locationId}/{languageCode}` | Admin JWT | Lấy một bản hiện hành |
-| POST | `/api/admin/narrations/draft` | Admin JWT, giới hạn 5 request/phút/IP | Sinh nháp văn bản bằng AI |
-| PUT | `/api/admin/narrations/{locationId}/{languageCode}` | Admin JWT | Tạo audio từ văn bản cuối và công bố/upsert |
+### 👤 THÀNH VIÊN 2: Phân hệ Thống kê & Dữ liệu Sự kiện (Analytics Core)
+- **Mã chức năng phụ trách**: `AD01` → `AD05` + Database Schema chung
+- **Nhánh Git**: `feature/analytics-events`
+- **File phụ trách chính**:
+  - `src/ThuyetMinhDaNgonNgu.DAL/Entities/VisitEventEntity.cs` *(tạo mới)*
+  - `src/ThuyetMinhDaNgonNgu.DAL/Entities/PlaybackEventEntity.cs` *(tạo mới)*
+  - `src/ThuyetMinhDaNgonNgu.DAL/Persistence/AppDbContext.cs` & thư mục `Migrations/`
+  - `src/ThuyetMinhDaNgonNgu.DAL/Repositories/PostgresAnalyticsRepository.cs` *(tạo mới)*
+  - `src/ThuyetMinhDaNgonNgu.BLL/Services/AnalyticsService.cs` *(tạo mới)*
+  - `src/ThuyetMinhDaNgonNgu.API/Controllers/AnalyticsController.cs` *(tạo mới)*
+  - `src/ThuyetMinhDaNgonNgu.API/Controllers/EventsController.cs` *(tạo mới cho Visits/Playback)*
+  - `src/ThuyetMinhDaNgonNgu.API/Extensions/AnalyticsExtensions.cs`
+  - `src/ThuyetMinhDaNgonNgu.API/wwwroot/js/admin-analytics.js` *(tạo mới)*
 
-Ví dụ yêu cầu thuyết minh:
+#### Nhiệm vụ cụ thể từng bước:
+1. **Thiết kế Entities & Migration cơ sở (Ưu tiên làm đầu tiên)**:
+   - Tạo `VisitEventEntity`: `Id`, `VisitorToken`, `IpHash`, `CreatedAtUtc`.
+   - Tạo `PlaybackEventEntity`: `Id`, `NarrationId`, `LocationId`, `LanguageCode`, `DurationSeconds`, `CreatedAtUtc`.
+   - Bổ sung `IsActive`, `CreatedAtUtc`, `UpdatedAtUtc` cho `LocationEntity` và `LanguageEntity` (theo PRD 6.3).
+   - Chạy lệnh tạo Migration:
+     ```powershell
+     dotnet ef migrations add AddAnalyticsAndAuditFields --project .\src\ThuyetMinhDaNgonNgu.DAL\ThuyetMinhDaNgonNgu.DAL.csproj --startup-project .\src\ThuyetMinhDaNgonNgu.API\ThuyetMinhDaNgonNgu.API.csproj
+     ```
+   - Báo cho cả nhóm pull về sau khi merge Migration vào `main`.
+2. **Nghiệp vụ Chống đếm trùng 30 phút (`AD01`)**:
+   - Viết API `POST /api/visits`: Kiểm tra xem `VisitorToken` (hoặc IP hash) đã gửi request trong vòng **30 phút** trước đó chưa. Nếu chưa, tạo bản ghi `VisitEvent`. Nếu đã có trong 30 phút, không tăng lượt truy cập (BR-16 & Phụ lục A).
+3. **Nghiệp vụ Ghi nhận lượt phát (`CL07 / AD02`)**:
+   - Viết API `POST /api/playback`: Lưu bản ghi `PlaybackEvent` khi Client gửi xác nhận đã nghe $\ge 15s$.
+4. **Nghiệp vụ Tổng hợp Báo cáo Thống kê (`AD01 - AD05`)**:
+   - Viết các phương thức tổng hợp trong `AnalyticsService`:
+     - `AD01`: Tổng lượt truy cập & ước tính khách duy nhất theo ngày/tuần/tháng.
+     - `AD02`: Tổng số lượt nghe bài thuyết minh.
+     - `AD03`: Số lượt nghe phân nhóm theo Địa điểm (Location).
+     - `AD04`: Số lượt nghe phân nhóm theo Ngôn ngữ (Language).
+     - `AD05`: Số lượt nghe phân nhóm theo Cặp `(Location - Language)`.
+   - Tạo `AnalyticsController` với quyền `[Authorize(Roles = "Admin")]` cung cấp endpoint `GET /api/admin/analytics/...`.
+5. **Đăng ký DI & Xây dựng Dashboard UI**:
+   - Khai báo Repository & Service trong file `AnalyticsExtensions.cs`.
+   - Viết `admin-analytics.js` hiển thị các thẻ KPI và bảng số liệu trực quan trên tab Thống kê của `admin.html`.
 
-```http
-POST /api/narrations
-Content-Type: application/json
+---
 
-{
-  "locationId": 1,
-  "languageCode": "en"
-}
-```
+### 👤 THÀNH VIÊN 3: Quản trị CRUD Dữ liệu & AI / Storage
+- **Mã chức năng phụ trách**: `AD06` → `AD14`
+- **Nhánh Git**: `feature/admin-crud-mgmt`
+- **File phụ trách chính**:
+  - `src/ThuyetMinhDaNgonNgu.API/Controllers/LocationsController.cs`
+  - `src/ThuyetMinhDaNgonNgu.API/Controllers/LanguagesController.cs`
+  - `src/ThuyetMinhDaNgonNgu.API/Controllers/AdminNarrationsController.cs`
+  - `src/ThuyetMinhDaNgonNgu.BLL/Services/LocationService.cs`, `LanguageService.cs`, `NarrationService.cs`
+  - `src/ThuyetMinhDaNgonNgu.DAL/Repositories/PostgresLocationRepository.cs`, `PostgresLanguageRepository.cs`
+  - `src/ThuyetMinhDaNgonNgu.DAL/Storage/SupabaseAudioStorage.cs`
+  - `src/ThuyetMinhDaNgonNgu.API/Extensions/ManagementExtensions.cs`
+  - `src/ThuyetMinhDaNgonNgu.API/wwwroot/admin.html`
+  - `src/ThuyetMinhDaNgonNgu.API/wwwroot/js/admin-crud.js` *(tạo mới)*
 
-Response gồm `id`, `locationId`, `languageCode`, `text`, `audioUrl`, `status`, `createdAtUtc`, `updatedAtUtc` và `isCached`. Audio cache được xác minh còn truy cập được trước khi trả về; nếu thiếu audio, hệ thống dùng lại văn bản đã lưu và chỉ tạo lại audio. Admin phải đăng nhập và gửi `Authorization: Bearer <accessToken>` cho các thao tác quản trị. Draft AI chưa được lưu/công bố; khi PUT, hệ thống tạo audio cho chính văn bản cuối trước, upload thành công rồi mới upsert bản hiện hành. Unique constraint bảo vệ mỗi cặp địa điểm/ngôn ngữ khỏi bản hiện hành trùng lặp.
+#### Nhiệm vụ cụ thể từng bước:
+1. **Hoàn thiện CRUD Địa điểm (`AD06 - AD08`)**:
+   - Bổ sung `UpdateAsync` và `DeleteAsync` trong DAL và BLL.
+   - Thêm endpoint `PUT /api/locations/{id}` và `DELETE /api/locations/{id}` trong `LocationsController` (yêu cầu quyền `Admin`).
+   - Kiểm tra ràng buộc: Không cho phép xóa địa điểm nếu đang có bài thuyết minh hoạt động (BR-12).
+2. **Hoàn thiện CRUD Ngôn ngữ (`AD09 - AD11`)**:
+   - Bổ sung `UpdateAsync` và `DeleteAsync` trong DAL và BLL.
+   - Thêm endpoint `PUT /api/languages/{code}` và `DELETE /api/languages/{code}` trong `LanguagesController` (yêu cầu quyền `Admin`).
+   - Kiểm tra ràng buộc: Không cho phép xóa ngôn ngữ nếu đang có bài thuyết minh tham chiếu đến (BR-12).
+3. **Hoàn thiện Quản lý Thuyết minh & Storage (`AD12 - AD14`)**:
+   - Viết endpoint `DELETE /api/admin/narrations/{locationId}/{languageCode}` (AD14).
+   - Khi xóa bản ghi thuyết minh, kiểm tra xem file audio có còn được bản ghi nào khác tham chiếu không; nếu không, gọi `SupabaseAudioStorage` để xóa file audio dọn dẹp bộ nhớ (BR-11).
+   - Cập nhật cơ chế sinh Signed URL ngắn hạn cho audio thay vì để public URL cố định.
+4. **Đăng ký DI & Xây dựng Giao diện Admin CRUD**:
+   - Khai báo các service bổ sung trong file `ManagementExtensions.cs`.
+   - Cập nhật giao diện `admin.html`: Bổ sung form Thêm/Sửa/Xóa Địa điểm, form Sửa/Xóa Ngôn ngữ, nút Xóa Thuyết minh (kèm hộp thoại xác nhận modal theo PRD Mục 5.2).
+   - Viết toàn bộ logic xử lý gọi API CRUD trong `admin-crud.js`.
 
-## Kiến trúc và deploy
+---
 
-- `src/ThuyetMinhDaNgonNgu.API/`: Controllers, DTOs, authentication/authorization, rate limiting, HTTP và DI.
-- `src/ThuyetMinhDaNgonNgu.BLL/`: interfaces, models và nghiệp vụ.
-- `src/ThuyetMinhDaNgonNgu.DAL/`: EF entities/DbContext/migrations, PostgreSQL repositories, Gemini/TTS và Supabase Storage.
+## 5. Danh mục API Toàn hệ thống (API Reference)
 
-Render cần đặt các biến môi trường trong bảng cấu hình ở trên; riêng connection string phải dùng `ConnectionStrings__DefaultConnection` và giữ nguyên connection string Supabase đang hoạt động. `.dockerfile` tiếp tục dùng `PORT` do Render cấp. Không cần persistent disk cho audio.
+| Phân hệ | Method | Endpoint | Xác thực | Mô tả | Mã CN |
+|---|:---:|---|:---:|---|:---:|
+| **Client** | `GET` | `/api/locations` | Public | Lấy danh sách địa điểm hiển thị | `CL04` |
+| | `GET` | `/api/locations/{id}` | Public | Lấy chi tiết 1 địa điểm | `CL04` |
+| | `GET` | `/api/languages` | Public | Lấy danh sách ngôn ngữ hỗ trợ | `CL01, CL02` |
+| | `POST` | `/api/narrations` | Public | Lấy bản thuyết minh hiện hành | `CL07` |
+| | `POST` | `/api/visits` | Public | Ghi nhận phiên truy cập (chống trùng 30p) | `AD01` |
+| | `POST` | `/api/playback` | Public | Ghi nhận lượt phát (khi nghe $\ge$ 15s) | `AD02` |
+| **Admin Auth** | `POST` | `/api/admin/auth/login` | Public | Đăng nhập Admin lấy JWT | - |
+| **Quản trị Địa điểm** | `POST` | `/api/locations` | Admin | Thêm mới địa điểm | `AD06` |
+| | `PUT` | `/api/locations/{id}` | Admin | Cập nhật địa điểm | `AD07` |
+| | `DELETE`| `/api/locations/{id}` | Admin | Xóa địa điểm | `AD08` |
+| **Quản trị Ngôn ngữ** | `POST` | `/api/languages` | Admin | Thêm mới ngôn ngữ | `AD09` |
+| | `PUT` | `/api/languages/{code}` | Admin | Cập nhật tên ngôn ngữ | `AD10` |
+| | `DELETE`| `/api/languages/{code}` | Admin | Xóa ngôn ngữ | `AD11` |
+| **Quản trị Thuyết minh** | `GET` | `/api/admin/narrations` | Admin | Danh sách các bản thuyết minh | `AD12` |
+| | `GET` | `/api/admin/narrations/{locId}/{langCode}` | Admin | Chi tiết 1 bản thuyết minh | `AD12` |
+| | `POST` | `/api/admin/narrations/draft` | Admin | Sinh văn bản nháp qua Gemini 3.8 Flash | `AD12` |
+| | `PUT` | `/api/admin/narrations/{locId}/{langCode}` | Admin | Tạo giọng nói AI và công bố bài | `AD13` |
+| | `DELETE`| `/api/admin/narrations/{locId}/{langCode}` | Admin | Xóa bài thuyết minh & dọn dẹp Storage | `AD14` |
+| **Quản trị Thống kê** | `GET` | `/api/admin/analytics/visits` | Admin | Thống kê lượt truy cập & khách duy nhất | `AD01` |
+| | `GET` | `/api/admin/analytics/playbacks` | Admin | Tổng lượt phát thuyết minh | `AD02` |
+| | `GET` | `/api/admin/analytics/by-location` | Admin | Thống kê lượt phát theo địa điểm | `AD03` |
+| | `GET` | `/api/admin/analytics/by-language` | Admin | Thống kê lượt phát theo ngôn ngữ | `AD04` |
+| | `GET` | `/api/admin/analytics/by-pair` | Admin | Thống kê lượt phát theo cặp địa điểm-ngôn ngữ | `AD05` |
+
+---
+
+## 6. Kiểm thử & Tiêu chí Nghiệm thu (Acceptance Criteria)
+
+Trước khi tạo Pull Request hợp nhất vào nhánh `main`, các thành viên cần đối chiếu các tiêu chí sau:
+
+- [ ] **Build & Compile**: Chạy `dotnet build` đạt 0 lỗi, 0 cảnh báo.
+- [ ] **Bảo mật**: Không commit file chứa mật khẩu thật, chuỗi kết nối hay API Key. Frontend không chứa `ServiceRoleKey`.
+- [ ] **Kiến trúc 3 lớp**: Controller không chứa logic nghiệp vụ, DAL không gọi Gemini/TTS.
+- [ ] **Quy tắc 30 phút**: F5/reload trang nhiều lần không làm tăng lượt truy cập (`VisitEvent`).
+- [ ] **Quy tắc 15 giây**: Chỉ gửi sự kiện `PlaybackEvent` khi trình duyệt đã phát audio liên tục từ 15 giây trở lên.
+- [ ] **Toàn vẹn dữ liệu**: Không cho xóa địa điểm hoặc ngôn ngữ nếu đang được tham chiếu bởi bản ghi thuyết minh.
+- [ ] **Không sót tính năng ngoài phạm vi**: Trang khách không còn mục lịch sử nghe.
