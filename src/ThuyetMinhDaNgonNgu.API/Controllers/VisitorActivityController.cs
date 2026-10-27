@@ -66,8 +66,7 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
             sessionRequest.Headers.TryAddWithoutValidation(
                 "Prefer", "resolution=merge-duplicates,return=minimal");
 
-            var sessionResponse =
-                await _http.SendAsync(sessionRequest);
+            var sessionResponse = await _http.SendAsync(sessionRequest);
 
             if (!sessionResponse.IsSuccessStatusCode)
                 return StatusCode(502, "Không cập nhật được visitor_sessions.");
@@ -86,8 +85,7 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
             heartbeatRequest.Headers.TryAddWithoutValidation(
                 "Prefer", "resolution=merge-duplicates,return=minimal");
 
-            var heartbeatResponse =
-                await _http.SendAsync(heartbeatRequest);
+            var heartbeatResponse = await _http.SendAsync(heartbeatRequest);
 
             if (!heartbeatResponse.IsSuccessStatusCode)
                 return StatusCode(502, "Không cập nhật được visitor_heartbeats.");
@@ -95,40 +93,37 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
             return Ok(new { success = true });
         }
 
+        [HttpPost("leave")]
+        public async Task<IActionResult> Leave(
+            [FromBody] HeartbeatRequest data)
+        {
+            if (data == null || data.VisitorId == Guid.Empty)
+                return BadRequest("visitorId không hợp lệ.");
+
+            var id = data.VisitorId.ToString();
+
+            var patchJson = JsonSerializer.Serialize(new
+            {
+                is_active = false
+            });
+
+            using var request = CreateRequest(
+                HttpMethod.Patch,
+                $"visitor_sessions?visitor_id=eq.{Uri.EscapeDataString(id)}",
+                patchJson);
+
+            request.Headers.TryAddWithoutValidation(
+                "Prefer", "return=minimal");
+
+            var response = await _http.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+                return StatusCode(502, "Không cập nhật được trạng thái.");
+
+            return Ok(new { success = true });
+        }
+
         [HttpGet("visitors")]
-
-
-[HttpPost("leave")]
-public async Task<IActionResult> Leave(
-    [FromBody] HeartbeatRequest data)
-{
-    if (data == null || data.VisitorId == Guid.Empty)
-        return BadRequest("visitorId không hợp lệ.");
-
-    var id = data.VisitorId.ToString();
-
-    var patchJson = JsonSerializer.Serialize(new
-    {
-        is_active = false
-    });
-
-    using var request = CreateRequest(
-        HttpMethod.Patch,
-        $"visitor_sessions?visitor_id=eq.{Uri.EscapeDataString(id)}",
-        patchJson);
-
-    request.Headers.TryAddWithoutValidation(
-        "Prefer", "return=minimal");
-
-    var response = await _http.SendAsync(request);
-
-    if (!response.IsSuccessStatusCode)
-        return StatusCode(502, "Không cập nhật được trạng thái.");
-
-    return Ok(new { success = true });
-}
-
-
         public async Task<IActionResult> GetVisitors()
         {
             using var sessionsRequest = CreateRequest(
@@ -140,7 +135,8 @@ public async Task<IActionResult> Leave(
             if (!sessionsResponse.IsSuccessStatusCode)
                 return StatusCode(502, "Không đọc được visitor_sessions.");
 
-            var sessionsJson = await sessionsResponse.Content.ReadAsStringAsync();
+            var sessionsJson =
+                await sessionsResponse.Content.ReadAsStringAsync();
 
             using var heartbeatsRequest = CreateRequest(
                 HttpMethod.Get,
@@ -151,7 +147,8 @@ public async Task<IActionResult> Leave(
             if (!heartbeatsResponse.IsSuccessStatusCode)
                 return StatusCode(502, "Không đọc được visitor_heartbeats.");
 
-            var heartbeatsJson = await heartbeatsResponse.Content.ReadAsStringAsync();
+            var heartbeatsJson =
+                await heartbeatsResponse.Content.ReadAsStringAsync();
 
             using var sessionsDoc = JsonDocument.Parse(sessionsJson);
             using var heartbeatsDoc = JsonDocument.Parse(heartbeatsJson);
@@ -160,11 +157,14 @@ public async Task<IActionResult> Leave(
 
             foreach (var item in heartbeatsDoc.RootElement.EnumerateArray())
             {
-                var id = item.GetProperty("visitor_id").GetVisitors()String();
+                var id = item.GetProperty("visitor_id").GetString();
                 var timeText = item.GetProperty("last_seen").GetString();
 
-                if (id != null && DateTimeOffset.TryParse(timeText, out var time))
+                if (id != null &&
+                    DateTimeOffset.TryParse(timeText, out var time))
+                {
                     latest[id] = time;
+                }
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -197,7 +197,14 @@ public async Task<IActionResult> Leave(
                     patchRequest.Headers.TryAddWithoutValidation(
                         "Prefer", "return=minimal");
 
-                    await _http.SendAsync(patchRequest);
+                    using var patchResponse =
+                        await _http.SendAsync(patchRequest);
+
+                    if (!patchResponse.IsSuccessStatusCode)
+                    {
+                        return StatusCode(
+                            502, "Không cập nhật được is_active trong Supabase.");
+                    }
                 }
 
                 result.Add(new
