@@ -21,29 +21,77 @@ Content-Type: application/json
   "name": "Español"
 }
 
-### Tạo thuyết minh mô phỏng bằng tiếng Anh
-POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations
+### Lấy bài thuyết minh hiện hành từ cơ sở dữ liệu
+GET {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations/1/en
+Accept: application/json
+
+### Kiểm tra lỗi: không có bài thuyết minh cho cặp địa điểm/ngôn ngữ (dự kiến 404)
+GET {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations/999999/en
+Accept: application/json
+
+### Đăng nhập Admin để lấy JWT cho các request quản trị
+# @name adminLogin
+POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/admin/auth/login
 Content-Type: application/json
 
 {
-  "locationId": 1,
-  "languageCode": "en"
+  "username": "<admin-username>",
+  "password": "<admin-password>"
 }
 
-### Kiểm tra lỗi: địa điểm không tồn tại (dự kiến 404)
-POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations
+### Tạo địa điểm (Admin)
+POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/locations
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
 Content-Type: application/json
 
 {
-  "locationId": 999,
-  "languageCode": "en"
+  "name": "Địa điểm kiểm thử",
+  "city": "Hà Nội",
+  "description": "Dữ liệu kiểm thử local.",
+  "latitude": 21.0285,
+  "longitude": 105.8542
 }
 
-### Kiểm tra lỗi: ngôn ngữ chưa hỗ trợ (dự kiến 400)
-POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations
+### Cập nhật địa điểm (Admin)
+PUT {{ThuyetMinhDaNgonNgu_HostAddress}}/api/locations/999999
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
 Content-Type: application/json
 
 {
-  "locationId": 1,
-  "languageCode": "fr"
+  "name": "Địa điểm đã cập nhật",
+  "city": "Hà Nội",
+  "description": "Mô tả đã cập nhật.",
+  "latitude": 21.0285,
+  "longitude": 105.8542
 }
+
+### Xóa địa điểm cùng tất cả narration liên quan và audio không còn được tham chiếu (Admin)
+DELETE {{ThuyetMinhDaNgonNgu_HostAddress}}/api/locations/999999
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
+
+### Tạo ngôn ngữ (Admin)
+POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/languages
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "code": "es",
+  "name": "Español"
+}
+
+### Cập nhật tên ngôn ngữ (Admin)
+PUT {{ThuyetMinhDaNgonNgu_HostAddress}}/api/languages/es
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Tiếng Tây Ban Nha"
+}
+
+### Xóa ngôn ngữ (Admin; bị từ chối nếu đang được tham chiếu)
+DELETE {{ThuyetMinhDaNgonNgu_HostAddress}}/api/languages/es
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
+
+### Xóa bài thuyết minh và audio không còn được tham chiếu (Admin)
+DELETE {{ThuyetMinhDaNgonNgu_HostAddress}}/api/admin/narrations/999999/es
+Authorization: Bearer {{adminLogin.response.body.accessToken}}
