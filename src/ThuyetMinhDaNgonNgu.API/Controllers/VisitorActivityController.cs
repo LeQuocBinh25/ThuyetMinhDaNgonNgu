@@ -178,7 +178,7 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                     continue;
 
                 var active = latest.TryGetValue(id, out var lastSeen)
-                    && now - lastSeen <= TimeSpan.FromSeconds(60);
+                    && now - lastSeen <= TimeSpan.FromSeconds(1);
 
                 var oldActive = item.GetProperty("is_active").GetBoolean();
 
