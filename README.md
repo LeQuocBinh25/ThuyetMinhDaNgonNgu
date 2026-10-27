@@ -287,7 +287,7 @@ Bảng dưới đây là hợp đồng mục tiêu theo ngữ cảnh PRD; một 
 |---|---|---|---|
 | `GET` | `/api/locations`, `/api/locations/{id}` | Public | Danh sách/chi tiết địa điểm |
 | `GET` | `/api/languages` | Public | Danh sách ngôn ngữ hỗ trợ |
-| `POST` | `/api/narrations` | Public | Lấy narration hiện hành cho địa điểm/ngôn ngữ |
+| `GET` | `/api/narrations/{locationId}/{languageCode}` | Public | Đọc narration hiện hành trong database; trả `404` nếu chưa có, không tự tạo bằng AI |
 | `POST` | `/api/visits` | Public | Ghi nhận visit; chống đếm trùng 30 phút |
 | `POST` | `/api/playback` | Public | Ghi nhận playback đủ điều kiện 15 giây |
 | `POST` | `/api/admin/auth/login` | Public | Đăng nhập Admin, nhận JWT |

@@ -21,32 +21,13 @@ Content-Type: application/json
   "name": "Español"
 }
 
-### Tạo thuyết minh mô phỏng bằng tiếng Anh
-POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations
-Content-Type: application/json
+### Lấy bài thuyết minh hiện hành từ cơ sở dữ liệu
+GET {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations/1/en
+Accept: application/json
 
-{
-  "locationId": 1,
-  "languageCode": "en"
-}
-
-### Kiểm tra lỗi: địa điểm không tồn tại (dự kiến 404)
-POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations
-Content-Type: application/json
-
-{
-  "locationId": 999,
-  "languageCode": "en"
-}
-
-### Kiểm tra lỗi: ngôn ngữ chưa hỗ trợ (dự kiến 400)
-POST {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations
-Content-Type: application/json
-
-{
-  "locationId": 1,
-  "languageCode": "fr"
-}
+### Kiểm tra lỗi: không có bài thuyết minh cho cặp địa điểm/ngôn ngữ (dự kiến 404)
+GET {{ThuyetMinhDaNgonNgu_HostAddress}}/api/narrations/999999/en
+Accept: application/json
 
 ### Đăng nhập Admin để lấy JWT cho các request quản trị
 # @name adminLogin

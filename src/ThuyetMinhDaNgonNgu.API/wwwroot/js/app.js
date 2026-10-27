@@ -127,7 +127,7 @@ async function getJson(url, options = {}) {
   const contentType = response.headers.get("content-type") || "";
   let data;
 
-  if (contentType.includes("application/json")) {
+  if (contentType.includes("json")) {
     data = await response.json();
   } else {
     data = await response.text();
@@ -139,10 +139,12 @@ async function getJson(url, options = {}) {
     if (typeof data === "string" && data.trim()) {
       message = data;
     } else if (data && typeof data === "object") {
-      message = data.message || data.error || message;
+      message = data.message || data.detail || data.error || message;
     }
 
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
 
   return data;
@@ -414,17 +416,13 @@ if (narrationForm) {
 
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.textContent = "Đang tạo thuyết minh...";
+      submitBtn.textContent = "Đang tải bài thuyết minh...";
     }
 
     try {
-      const response = await getJson("/api/narrations", {
-        method: "POST",
-        body: JSON.stringify({
-          locationId: locationId,
-          languageCode: languageCode,
-        }),
-      });
+      const response = await getJson(
+        `/api/narrations/${encodeURIComponent(locationId)}/${encodeURIComponent(languageCode)}`,
+      );
 
       // Một số API trả dữ liệu trực tiếp, một số trả trong thuộc tính data.
       const data =
@@ -452,7 +450,7 @@ if (narrationForm) {
 
       if (!narration.text) {
         throw new Error(
-          "API đã phản hồi nhưng không có nội dung thuyết minh. Hãy kiểm tra dữ liệu trả về của /api/narrations.",
+          "Bản thuyết minh hiện hành không có nội dung.",
         );
       }
 
@@ -468,16 +466,24 @@ if (narrationForm) {
         });
       }
     } catch (error) {
-      console.error("Lỗi tạo thuyết minh:", error);
+      if (resultSection) {
+        resultSection.hidden = true;
+      }
 
-      showError(
-        error.message ||
-          "Không thể tạo bài thuyết minh. Hãy kiểm tra kết nối máy chủ.",
-      );
+      if (error.status === 404) {
+        showError("Chưa có bài thuyết minh cho địa điểm và ngôn ngữ đã chọn.");
+      } else {
+        console.error("Lỗi tải bài thuyết minh:", error);
+
+        showError(
+          error.message ||
+            "Không thể tải bài thuyết minh. Hãy kiểm tra kết nối máy chủ.",
+        );
+      }
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.textContent = originalButtonText || "Tạo thuyết minh";
+        submitBtn.textContent = originalButtonText || "Xem thuyết minh";
       }
     }
   });

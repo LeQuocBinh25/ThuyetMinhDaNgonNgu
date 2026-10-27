@@ -30,40 +30,6 @@ public sealed class NarrationService : INarrationService
         _audioStorage = audioStorage;
     }
 
-    public async Task<NarrationResult> CreateNarrationAsync(
-        int locationId,
-        string languageCode,
-        CancellationToken cancellationToken = default)
-    {
-        var (location, language) = await GetSelectionAsync(locationId, languageCode, cancellationToken);
-        var current = await _narrations.GetCurrentAsync(location.Id, language.Code, cancellationToken);
-
-        if (current is not null &&
-            !string.IsNullOrWhiteSpace(current.Text) &&
-            current.AudioObjectPath.StartsWith(CurrentAudioPathPrefix, StringComparison.Ordinal) &&
-            await _audioStorage.ExistsAsync(current.AudioObjectPath, cancellationToken))
-        {
-            return await ToResultAsync(current, isCached: true, cancellationToken);
-        }
-
-        string text = current is not null && !string.IsNullOrWhiteSpace(current.Text)
-            ? current.Text
-            : await _aiProvider.GenerateNarrationAsync(
-            location.Name,
-            $"{location.City}. {location.Description}",
-            language.Code,
-            cancellationToken);
-
-        return await PublishTextAsync(
-            location,
-            language,
-            text,
-            current is null || string.IsNullOrWhiteSpace(current.Text) ? "ai" : current.Source,
-            current,
-            isCached: false,
-            cancellationToken);
-    }
-
     public async Task<string> CreateDraftAsync(
         int locationId,
         string languageCode,

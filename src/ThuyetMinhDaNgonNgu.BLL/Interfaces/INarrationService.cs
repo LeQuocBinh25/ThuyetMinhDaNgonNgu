@@ -5,11 +5,6 @@ namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;
 
 public interface INarrationService
 {
-    Task<NarrationResult> CreateNarrationAsync(
-        int locationId,
-        string languageCode,
-        CancellationToken cancellationToken = default);
-
     Task<string> CreateDraftAsync(
         int locationId,
         string languageCode,
