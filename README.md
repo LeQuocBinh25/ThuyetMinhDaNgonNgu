@@ -23,7 +23,7 @@ Các yêu cầu nghiệp vụ phải giữ đúng:
 4. Bucket audio luôn **Private**; không đưa `ServiceRoleKey` hoặc thông tin bí mật xuống trình duyệt.
 5. Tính năng lịch sử nghe cá nhân nằm ngoài phạm vi; không xây dựng hoặc lưu lịch sử nghe vào `localStorage`.
 6. Khách vẫn có thể chọn địa điểm/ngôn ngữ thủ công nếu GPS bị từ chối hoặc không khả dụng.
-7. Không xóa địa điểm/ngôn ngữ đang được bản thuyết minh tham chiếu; việc dọn audio phải kiểm tra không còn bản ghi nào dùng object đó.
+7. Xóa địa điểm sẽ xóa các bản thuyết minh phụ thuộc trong cùng thao tác dữ liệu; chỉ dọn audio sau khi xác nhận không còn bản ghi nào khác dùng object đó. Không xóa ngôn ngữ còn được bản thuyết minh tham chiếu.
 
 ## 2. Chuẩn bị môi trường
 
@@ -243,7 +243,7 @@ Quyền sở hữu dưới đây là quy tắc điều phối để hạn chế 
 **Luồng công việc:**
 
 1. Trao đổi với TV2 về các trường `IsActive`, thời gian tạo/cập nhật và ràng buộc dữ liệu cần migration; không tự sửa `AppDbContext` hoặc tạo migration song song.
-2. Hoàn thiện endpoint Admin tạo/sửa/xóa địa điểm và ngôn ngữ; giữ API đọc cần thiết cho khách. Không xóa dữ liệu còn được narration tham chiếu.
+2. Hoàn thiện endpoint Admin tạo/sửa/xóa địa điểm và ngôn ngữ; giữ API đọc cần thiết cho khách. Xóa địa điểm phải xóa narration phụ thuộc theo transaction; xóa ngôn ngữ vẫn bị từ chối nếu còn narration tham chiếu.
 3. Hoàn thiện đọc/tạo nháp/công bố/xóa narration. Duy trì một bản hiện hành cho mỗi cặp địa điểm–ngôn ngữ.
 4. Chuyển audio sang bucket Private và signed URL ngắn hạn hoặc proxy backend. Khi thay/xóa narration, chỉ xóa object audio sau khi xác nhận không còn bản ghi nào tham chiếu.
 5. Cập nhật UI hiện tại trong `admin.html`, `admin.js`, `admin.css`; không nhúng phần dashboard analytics của TV2 vào các file này nếu chưa phối hợp.
@@ -309,6 +309,6 @@ Mọi route Admin phải xác thực/ủy quyền phía server; ẩn nút trên 
 - [ ] Không có lịch sử nghe cá nhân trên trang khách hoặc trong local storage.
 - [ ] Audio không được truy cập bằng public bucket/URL; không có service-role key ở frontend.
 - [ ] Visit dedup 30 phút và playback tối thiểu 15 giây được kiểm thử.
-- [ ] Ràng buộc tham chiếu khi xóa địa điểm/ngôn ngữ/narration và dọn Storage đã được kiểm thử.
+- [ ] Xóa địa điểm kèm narration phụ thuộc, xóa ngôn ngữ bị chặn khi còn narration, và dọn Storage an toàn đã được kiểm thử.
 - [ ] Migration chỉ được tạo bởi người phụ trách schema, có tên rõ ràng và kiểm tra model snapshot.
 - [ ] PR mô tả mã chức năng, thay đổi API/schema, cấu hình mới và kết quả kiểm thử.

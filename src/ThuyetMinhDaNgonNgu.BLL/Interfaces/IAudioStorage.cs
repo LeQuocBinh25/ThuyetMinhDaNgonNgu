@@ -4,11 +4,14 @@ namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;
 
 public interface IAudioStorage
 {
-    Task UploadAsync(string objectPath, GeneratedAudio audio);
+    Task UploadAsync(
+        string objectPath,
+        GeneratedAudio audio,
+        CancellationToken cancellationToken = default);
 
-    Task<bool> ExistsAsync(string objectPath);
+    Task<bool> ExistsAsync(string objectPath, CancellationToken cancellationToken = default);
 
-    Task DeleteAsync(string objectPath);
+    Task DeleteAsync(string objectPath, CancellationToken cancellationToken = default);
 
-    string GetPublicUrl(string objectPath);
+    Task<string> GetSignedUrlAsync(string objectPath, CancellationToken cancellationToken = default);
 }

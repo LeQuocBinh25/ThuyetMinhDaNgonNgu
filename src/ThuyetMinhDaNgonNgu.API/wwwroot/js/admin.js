@@ -44,7 +44,11 @@ async function api(url, options = {}) {
         headers.set("Content-Type", "application/json");
     }
 
-    if (url.startsWith("/api/admin/") || url === "/api/languages") {
+    if (
+        url.startsWith("/api/admin/") ||
+        url.startsWith("/api/locations") ||
+        url.startsWith("/api/languages")
+    ) {
         const accessToken = token();
         if (accessToken) {
             headers.set("Authorization", `Bearer ${accessToken}`);
@@ -53,7 +57,7 @@ async function api(url, options = {}) {
 
     const response = await fetch(url, { ...options, headers });
     const contentType = response.headers.get("content-type") || "";
-    const data = contentType.includes("application/json")
+    const data = contentType.includes("json")
         ? await response.json()
         : await response.text();
 
@@ -80,16 +84,6 @@ function msg(id, text, error = false) {
     $(id).style.color = error ? "#b43e32" : "#42735c";
 }
 
-function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, (character) => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;"
-    })[character]);
-}
-
 function refreshLanguageOptions() {
     const select = $("language");
     select.replaceChildren(new Option("-- Chọn ngôn ngữ --", ""));
@@ -99,11 +93,100 @@ function refreshLanguageOptions() {
 }
 
 function renderLanguages() {
-    $("languageList").innerHTML = languages.length
-        ? languages.map((item) =>
-            `<div class="language-item"><span>${escapeHtml(item.name)}</span>` +
-            `<code>${escapeHtml(item.code)}</code></div>`).join("")
-        : "Chưa có ngôn ngữ.";
+    const container = $("languageList");
+    container.replaceChildren();
+
+    if (!languages.length) {
+        container.textContent = "Chưa có ngôn ngữ.";
+        return;
+    }
+
+    languages.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "management-item";
+
+        const details = document.createElement("div");
+        const name = document.createElement("strong");
+        name.textContent = item.name;
+        const code = document.createElement("small");
+        code.textContent = item.code;
+        details.append(name, code);
+
+        const actions = document.createElement("div");
+        actions.className = "management-actions";
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.className = "outline";
+        editButton.dataset.action = "edit-language";
+        editButton.dataset.code = item.code;
+        editButton.textContent = "Sửa";
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.dataset.action = "delete-language";
+        deleteButton.dataset.code = item.code;
+        deleteButton.textContent = "Xóa";
+        actions.append(editButton, deleteButton);
+        row.append(details, actions);
+        container.appendChild(row);
+    });
+}
+
+function renderLocations() {
+    const container = $("locationList");
+    container.replaceChildren();
+
+    if (!locations.length) {
+        container.textContent = "Chưa có địa điểm.";
+        return;
+    }
+
+    locations.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "management-item";
+
+        const details = document.createElement("div");
+        const name = document.createElement("strong");
+        name.textContent = item.name;
+        const city = document.createElement("small");
+        city.textContent = item.city || "";
+        details.append(name, city);
+
+        const actions = document.createElement("div");
+        actions.className = "management-actions";
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.className = "outline";
+        editButton.dataset.action = "edit-location";
+        editButton.dataset.id = item.id;
+        editButton.textContent = "Sửa";
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.dataset.action = "delete-location";
+        deleteButton.dataset.id = item.id;
+        deleteButton.textContent = "Xóa";
+        actions.append(editButton, deleteButton);
+        row.append(details, actions);
+        container.appendChild(row);
+    });
+}
+
+function confirmAction(message, title = "Xác nhận thao tác") {
+    return new Promise((resolve) => {
+        const dialog = $("confirmDialog");
+        $("confirmTitle").textContent = title;
+        $("confirmMessage").textContent = message;
+        dialog.addEventListener("close", () => {
+            resolve(dialog.returnValue === "confirm");
+        }, { once: true });
+        dialog.showModal();
+    });
+}
+
+function resetLocationForm() {
+    $("locationForm").reset();
+    $("locationId").value = "";
+    $("saveLocationBtn").textContent = "Thêm địa điểm";
+    $("cancelLocationEditBtn").hidden = true;
 }
 
 async function loadOptions() {
@@ -120,6 +203,7 @@ async function loadOptions() {
             item.id
         ));
     });
+    renderLocations();
     refreshLanguageOptions();
     renderLanguages();
 }
@@ -158,7 +242,14 @@ function renderSaved() {
             $("narrationText").value = item.text;
             msg("narrationMessage", "Đã tải bản hiện hành.");
         });
-        row.append(label, button);
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "outline";
+        deleteButton.dataset.action = "delete-narration";
+        deleteButton.dataset.locationId = item.locationId;
+        deleteButton.dataset.languageCode = item.languageCode;
+        deleteButton.textContent = "Xóa";
+        row.append(label, button, deleteButton);
         container.appendChild(row);
     });
 }
@@ -202,6 +293,97 @@ $("logoutBtn").addEventListener("click", () => {
     showLogin("Bạn đã đăng xuất.");
 });
 
+$("locationForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const id = $("locationId").value;
+    const latitudeValue = $("locationLatitude").value.trim();
+    const longitudeValue = $("locationLongitude").value.trim();
+    const latitude = latitudeValue === "" ? null : Number(latitudeValue);
+    const longitude = longitudeValue === "" ? null : Number(longitudeValue);
+
+    if ((latitude === null) !== (longitude === null)) {
+        msg("locationMessage", "Hãy nhập cả vĩ độ và kinh độ, hoặc để trống cả hai.", true);
+        return;
+    }
+
+    const body = {
+        name: $("locationName").value.trim(),
+        city: $("locationCity").value.trim(),
+        description: $("locationDescription").value.trim(),
+        latitude,
+        longitude
+    };
+
+    try {
+        await api(id ? `/api/locations/${encodeURIComponent(id)}` : "/api/locations", {
+            method: id ? "PUT" : "POST",
+            body: JSON.stringify(body)
+        });
+        resetLocationForm();
+        await loadOptions();
+        msg("locationMessage", id ? "Đã cập nhật địa điểm." : "Đã thêm địa điểm.");
+    } catch (error) {
+        msg("locationMessage", error.message, true);
+    }
+});
+
+$("cancelLocationEditBtn").addEventListener("click", resetLocationForm);
+
+$("locationList").addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) {
+        return;
+    }
+
+    const location = locations.find((item) => String(item.id) === button.dataset.id);
+    if (!location) {
+        return;
+    }
+
+    if (button.dataset.action === "edit-location") {
+        $("locationId").value = location.id;
+        $("locationName").value = location.name;
+        $("locationCity").value = location.city;
+        $("locationDescription").value = location.description || "";
+        $("locationLatitude").value = location.latitude ?? "";
+        $("locationLongitude").value = location.longitude ?? "";
+        $("saveLocationBtn").textContent = "Lưu thay đổi";
+        $("cancelLocationEditBtn").hidden = false;
+        $("locationForm").scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+    }
+
+    if (button.dataset.action === "delete-location" &&
+        await confirmAction(
+            `Xóa địa điểm "${location.name}" và tất cả bản thuyết minh liên quan? Audio không còn được bản ghi nào dùng sẽ bị dọn. Thao tác này không thể hoàn tác.`,
+            "Xóa địa điểm và nội dung liên quan")) {
+        try {
+            await api(`/api/locations/${encodeURIComponent(location.id)}`, {
+                method: "DELETE"
+            });
+        } catch (error) {
+            msg("locationMessage", error.message, true);
+            return;
+        }
+
+        if ($("locationId").value === String(location.id)) {
+            resetLocationForm();
+        }
+        if (String($("location").value) === String(location.id)) {
+            $("location").value = "";
+            $("narrationText").value = "";
+            msg("narrationMessage", "Địa điểm và các bản thuyết minh liên quan đã bị xóa.");
+        }
+
+        try {
+            await Promise.all([loadOptions(), refreshSaved()]);
+            msg("locationMessage", `Đã xóa địa điểm "${location.name}" và các bản thuyết minh liên quan.`);
+        } catch (error) {
+            msg("locationMessage", `Đã xóa địa điểm nhưng không tải lại được danh sách: ${error.message}`, true);
+        }
+    }
+});
+
 $("languageForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
@@ -212,13 +394,97 @@ $("languageForm").addEventListener("submit", async (event) => {
                 name: $("name").value.trim()
             })
         });
-        languages.push(item);
-        renderLanguages();
-        refreshLanguageOptions();
+        await loadOptions();
         $("languageForm").reset();
         msg("languageMessage", "Đã thêm ngôn ngữ thành công.");
     } catch (error) {
         msg("languageMessage", error.message, true);
+    }
+});
+
+$("languageList").addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) {
+        return;
+    }
+
+    const language = languages.find((item) => item.code === button.dataset.code);
+    if (!language) {
+        return;
+    }
+
+    if (button.dataset.action === "edit-language") {
+        $("languageEditCode").value = language.code;
+        $("languageEditName").value = language.name;
+        $("languageEditForm").hidden = false;
+        $("languageEditForm").scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+    }
+
+    if (button.dataset.action === "delete-language" &&
+        await confirmAction(`Xóa ngôn ngữ "${language.name}" (${language.code})? Không thể xóa nếu bài thuyết minh đang tham chiếu ngôn ngữ này.`)) {
+        try {
+            await api(`/api/languages/${encodeURIComponent(language.code)}`, {
+                method: "DELETE"
+            });
+            await loadOptions();
+            msg("languageMessage", `Đã xóa ngôn ngữ "${language.name}".`);
+        } catch (error) {
+            msg("languageMessage", error.message, true);
+        }
+    }
+});
+
+$("languageEditForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const code = $("languageEditCode").value;
+    try {
+        await api(`/api/languages/${encodeURIComponent(code)}`, {
+            method: "PUT",
+            body: JSON.stringify({ name: $("languageEditName").value.trim() })
+        });
+        $("languageEditForm").hidden = true;
+        await loadOptions();
+        msg("languageMessage", "Đã cập nhật ngôn ngữ.");
+    } catch (error) {
+        msg("languageMessage", error.message, true);
+    }
+});
+
+$("cancelLanguageEditBtn").addEventListener("click", () => {
+    $("languageEditForm").hidden = true;
+    $("languageEditForm").reset();
+});
+
+$("savedList").addEventListener("click", async (event) => {
+    const button = event.target.closest('button[data-action="delete-narration"]');
+    if (!button) {
+        return;
+    }
+
+    const { locationId, languageCode } = button.dataset;
+    const narration = savedNarrations.find((item) =>
+        String(item.locationId) === locationId && item.languageCode === languageCode);
+    if (!narration || !await confirmAction(
+        `Xóa bài thuyết minh "${narration.locationName} · ${narration.languageName}"? Audio chỉ được dọn nếu không còn bản ghi nào sử dụng.`,
+        "Xóa bài thuyết minh")) {
+        return;
+    }
+
+    try {
+        await api(
+            `/api/admin/narrations/${encodeURIComponent(locationId)}/${encodeURIComponent(languageCode)}`,
+            { method: "DELETE" }
+        );
+        msg("narrationMessage", "Đã xóa bài thuyết minh và dọn audio không còn được sử dụng.");
+    } catch (error) {
+        msg("narrationMessage", error.message, true);
+    } finally {
+        try {
+            await refreshSaved();
+        } catch (error) {
+            msg("narrationMessage", `Không thể tải lại danh sách bài thuyết minh: ${error.message}`, true);
+        }
     }
 });
 

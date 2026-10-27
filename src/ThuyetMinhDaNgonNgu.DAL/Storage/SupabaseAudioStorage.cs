@@ -1,6 +1,6 @@
-using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
@@ -10,6 +10,8 @@ namespace ThuyetMinhDaNgonNgu.DAL.Storage;
 
 public sealed class SupabaseAudioStorage : IAudioStorage
 {
+    private const int SignedUrlExpiresInSeconds = 300;
+
     private readonly HttpClient _httpClient;
     private readonly string _baseUrl;
     private readonly string _serviceRoleKey;
@@ -31,13 +33,16 @@ public sealed class SupabaseAudioStorage : IAudioStorage
         }
     }
 
-    public async Task UploadAsync(string objectPath, GeneratedAudio audio)
+    public async Task UploadAsync(
+        string objectPath,
+        GeneratedAudio audio,
+        CancellationToken cancellationToken = default)
     {
         using var request = CreateRequest(HttpMethod.Post, ObjectUrl(objectPath));
         request.Headers.TryAddWithoutValidation("x-upsert", "false");
         request.Content = new ByteArrayContent(audio.Content);
         request.Content.Headers.ContentType = new MediaTypeHeaderValue(audio.ContentType);
-        using var response = await _httpClient.SendAsync(request);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -51,10 +56,15 @@ public sealed class SupabaseAudioStorage : IAudioStorage
 
     }
 
-    public async Task<bool> ExistsAsync(string objectPath)
+    public async Task<bool> ExistsAsync(
+        string objectPath,
+        CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Head, PublicObjectUrl(objectPath));
-        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        using var request = CreateRequest(HttpMethod.Head, ObjectUrl(objectPath));
+        using var response = await _httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return false;
@@ -69,13 +79,15 @@ public sealed class SupabaseAudioStorage : IAudioStorage
         return true;
     }
 
-    public async Task DeleteAsync(string objectPath)
+    public async Task DeleteAsync(
+        string objectPath,
+        CancellationToken cancellationToken = default)
     {
         using var request = CreateRequest(
             HttpMethod.Delete,
             $"{_baseUrl}/storage/v1/object/{Uri.EscapeDataString(_bucket)}");
         request.Content = JsonContent.Create(new { prefixes = new[] { objectPath } });
-        using var response = await _httpClient.SendAsync(request);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
 
         if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
         {
@@ -84,7 +96,53 @@ public sealed class SupabaseAudioStorage : IAudioStorage
         }
     }
 
-    public string GetPublicUrl(string objectPath) => PublicObjectUrl(objectPath);
+    public async Task<string> GetSignedUrlAsync(
+        string objectPath,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(
+            HttpMethod.Post,
+            $"{_baseUrl}/storage/v1/object/sign/{Uri.EscapeDataString(_bucket)}/{EncodeObjectPath(objectPath)}");
+        request.Content = JsonContent.Create(new { expiresIn = SignedUrlExpiresInSeconds });
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Supabase Storage signed URL request failed with HTTP {(int)response.StatusCode}: " +
+                GetErrorDetail(responseBody),
+                inner: null,
+                response.StatusCode);
+        }
+
+        using var document = JsonDocument.Parse(responseBody);
+        if (!document.RootElement.TryGetProperty("signedURL", out var signedUrlElement) ||
+            signedUrlElement.ValueKind != JsonValueKind.String ||
+            string.IsNullOrWhiteSpace(signedUrlElement.GetString()))
+        {
+            throw new InvalidOperationException(
+                "Supabase Storage returned a successful response without a signed URL.");
+        }
+
+        string signedUrl = signedUrlElement.GetString()!;
+        if (signedUrl.StartsWith("/object/", StringComparison.Ordinal))
+        {
+            signedUrl = "/storage/v1" + signedUrl;
+        }
+
+        var baseUri = new Uri(_baseUrl, UriKind.Absolute);
+        if (!Uri.TryCreate(new Uri(_baseUrl.TrimEnd('/') + "/", UriKind.Absolute), signedUrl, out var resultUri) ||
+            resultUri.Scheme != baseUri.Scheme ||
+            !string.Equals(resultUri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase) ||
+            resultUri.Port != baseUri.Port)
+        {
+            throw new InvalidOperationException(
+                "Supabase Storage returned a signed URL with an unexpected origin.");
+        }
+
+        return resultUri.AbsoluteUri;
+    }
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string url)
     {
@@ -96,9 +154,6 @@ public sealed class SupabaseAudioStorage : IAudioStorage
 
     private string ObjectUrl(string objectPath) =>
         $"{_baseUrl}/storage/v1/object/{Uri.EscapeDataString(_bucket)}/{EncodeObjectPath(objectPath)}";
-
-    private string PublicObjectUrl(string objectPath) =>
-        $"{_baseUrl}/storage/v1/object/public/{Uri.EscapeDataString(_bucket)}/{EncodeObjectPath(objectPath)}";
 
     private static string EncodeObjectPath(string objectPath) =>
         string.Join('/', objectPath.Split('/').Select(Uri.EscapeDataString));

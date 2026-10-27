@@ -25,17 +25,20 @@ public sealed class NarrationsController : ControllerBase
 
     [HttpPost]
     [EnableRateLimiting("Narration")]
+    [EndpointSummary("Lấy hoặc tạo thuyết minh theo địa điểm và ngôn ngữ.")]
     [ProducesResponseType(typeof(NarrationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<NarrationResponse>> Create(
-        [FromBody] CreateNarrationRequest request)
+        [FromBody] CreateNarrationRequest request,
+        CancellationToken cancellationToken)
     {
         try
         {
             var result = await _service.CreateNarrationAsync(
                 request.LocationId,
-                request.LanguageCode);
+                request.LanguageCode,
+                cancellationToken);
             var response = new NarrationResponse(
                 result.Id,
                 result.LocationId,
@@ -68,7 +71,10 @@ public sealed class NarrationsController : ControllerBase
             _logger.LogError(exception, "A narration provider rejected the request.");
             return StatusCode(
                 StatusCodes.Status502BadGateway,
-                new { message = "Không thể tạo hoặc lưu audio thuyết minh. Vui lòng thử lại sau." });
+                new
+                {
+                    message = "Không thể hoàn tất xử lý audio thuyết minh. Nếu vừa cập nhật bản hiện hành, hãy kiểm tra trạng thái và Storage trước khi thử lại."
+                });
         }
     }
 }

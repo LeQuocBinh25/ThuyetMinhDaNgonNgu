@@ -20,6 +20,10 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 
+
+var username = builder.Configuration["AdminAuth:Username"];
+var password = builder.Configuration["AdminAuth:Password"];
+
 // Supabase
 var connectionString =
     builder.Configuration.GetConnectionString("DefaultConnection");

@@ -2,7 +2,8 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ThuyetMinhDaNgonNgu.API.DTOs.Requests;
 
-public sealed class CreateLanguageRequest
+/// <summary>Mã và tên hiển thị của ngôn ngữ mới.</summary>
+public sealed record CreateLanguageRequest
 {
     [Required(ErrorMessage = "code là bắt buộc.")]
     [StringLength(10, MinimumLength = 2, ErrorMessage = "code phải có từ 2 đến 10 ký tự.")]
