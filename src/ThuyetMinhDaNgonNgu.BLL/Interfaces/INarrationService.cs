@@ -7,16 +7,29 @@ public interface INarrationService
 {
     Task<NarrationResult> CreateNarrationAsync(
         int locationId,
-        string languageCode);
+        string languageCode,
+        CancellationToken cancellationToken = default);
 
-    Task<string> CreateDraftAsync(int locationId, string languageCode);
+    Task<string> CreateDraftAsync(
+        int locationId,
+        string languageCode,
+        CancellationToken cancellationToken = default);
 
     Task<NarrationResult> PublishAsync(
         int locationId,
         string languageCode,
-        string text);
+        string text,
+        CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<NarrationResult>> GetAllCurrentAsync();
+    Task<IReadOnlyList<NarrationResult>> GetAllCurrentAsync(CancellationToken cancellationToken = default);
 
-    Task<NarrationResult?> GetCurrentAsync(int locationId, string languageCode);
+    Task<NarrationResult?> GetCurrentAsync(
+        int locationId,
+        string languageCode,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        int locationId,
+        string languageCode,
+        CancellationToken cancellationToken = default);
 }

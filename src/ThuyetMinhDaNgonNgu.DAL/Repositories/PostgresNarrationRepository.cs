@@ -8,20 +8,26 @@ namespace ThuyetMinhDaNgonNgu.DAL.Repositories;
 
 public sealed class PostgresNarrationRepository(AppDbContext dbContext) : INarrationRepository
 {
-    public Task<NarrationRecord?> GetCurrentAsync(int locationId, string languageCode) =>
+    public Task<NarrationRecord?> GetCurrentAsync(
+        int locationId,
+        string languageCode,
+        CancellationToken cancellationToken = default) =>
         dbContext.Narrations.AsNoTracking()
             .Where(item => item.LocationId == locationId && item.LanguageCode == languageCode)
             .Select(ToRecord())
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<NarrationRecord>> GetAllCurrentAsync() =>
+    public async Task<IReadOnlyList<NarrationRecord>> GetAllCurrentAsync(
+        CancellationToken cancellationToken = default) =>
         await dbContext.Narrations.AsNoTracking()
             .OrderBy(item => item.Location.Name)
             .ThenBy(item => item.LanguageCode)
             .Select(ToRecord())
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
-    public async Task<NarrationRecord> SaveCurrentAsync(NarrationRecord narration)
+    public async Task<NarrationRecord> SaveCurrentAsync(
+        NarrationRecord narration,
+        CancellationToken cancellationToken = default)
     {
         var entity = new NarrationEntity
         {
@@ -50,11 +56,52 @@ public sealed class PostgresNarrationRepository(AppDbContext dbContext) : INarra
                 "AudioContentType" = EXCLUDED."AudioContentType",
                 "Source" = EXCLUDED."Source",
                 "UpdatedAtUtc" = EXCLUDED."UpdatedAtUtc"
-            """);
+            """,
+            cancellationToken);
 
-        return await GetCurrentAsync(narration.LocationId, narration.LanguageCode)
+        return await GetCurrentAsync(narration.LocationId, narration.LanguageCode, cancellationToken)
             ?? throw new InvalidOperationException("Không đọc lại được bản thuyết minh vừa lưu.");
     }
+
+    public async Task<NarrationRecord?> DeleteCurrentAsync(
+        int locationId,
+        string languageCode,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await dbContext.Narrations
+            .Include(item => item.Location)
+            .Include(item => item.Language)
+            .FirstOrDefaultAsync(
+                item => item.LocationId == locationId && item.LanguageCode == languageCode,
+                cancellationToken);
+
+        if (entity is null)
+        {
+            return null;
+        }
+
+        var deleted = new NarrationRecord(
+            entity.Id,
+            entity.LocationId,
+            entity.Location.Name,
+            entity.LanguageCode,
+            entity.Language.Name,
+            entity.Text,
+            entity.AudioObjectPath,
+            entity.AudioContentType,
+            entity.Source,
+            entity.CreatedAtUtc,
+            entity.UpdatedAtUtc);
+
+        dbContext.Narrations.Remove(entity);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return deleted;
+    }
+
+    public Task<bool> IsAudioObjectReferencedAsync(
+        string objectPath,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Narrations.AnyAsync(item => item.AudioObjectPath == objectPath, cancellationToken);
 
     private static System.Linq.Expressions.Expression<Func<NarrationEntity, NarrationRecord>> ToRecord() =>
         item => new NarrationRecord(

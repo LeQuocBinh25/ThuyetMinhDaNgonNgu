@@ -2,7 +2,8 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ThuyetMinhDaNgonNgu.API.DTOs.Requests;
 
-public sealed class CreateLocationRequest
+/// <summary>Thông tin cần thiết để tạo một địa điểm.</summary>
+public sealed record CreateLocationRequest
 {
     [Required, StringLength(200, MinimumLength = 1)]
     public string Name { get; init; } = string.Empty;

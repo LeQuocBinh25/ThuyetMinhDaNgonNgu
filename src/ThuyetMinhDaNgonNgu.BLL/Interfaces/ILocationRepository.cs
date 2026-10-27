@@ -5,14 +5,26 @@ namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;
 
 public interface ILocationRepository
 {
-    Task<IReadOnlyList<TouristLocation>> GetAllAsync();
+    Task<IReadOnlyList<TouristLocation>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    Task<TouristLocation?> GetByIdAsync(int id);
+    Task<TouristLocation?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
     Task<TouristLocation> AddAsync(
         string name,
         string city,
         string description,
         double? latitude,
-        double? longitude);
+        double? longitude,
+        CancellationToken cancellationToken = default);
+
+    Task<TouristLocation?> UpdateAsync(
+        int id,
+        string name,
+        string city,
+        string description,
+        double? latitude,
+        double? longitude,
+        CancellationToken cancellationToken = default);
+
+    Task<ResourceDeleteResult> DeleteAsync(int id, CancellationToken cancellationToken = default);
 }

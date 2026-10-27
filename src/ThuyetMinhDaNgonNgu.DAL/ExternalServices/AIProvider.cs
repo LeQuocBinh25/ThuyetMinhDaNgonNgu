@@ -21,7 +21,8 @@ public class AIProvider : IAiNarrationProvider
     public async Task<string> GenerateNarrationAsync(
         string locationName,
         string description,
-        string languageCode)
+        string languageCode,
+        CancellationToken cancellationToken = default)
     {
         string apiKey = _configuration["Gemini:ApiKey"]
             ?? throw new ProviderConfigurationException(
@@ -67,8 +68,8 @@ public class AIProvider : IAiNarrationProvider
             }
         });
 
-        using var response = await _httpClient.SendAsync(request);
-        string responseBody = await response.Content.ReadAsStringAsync();
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {

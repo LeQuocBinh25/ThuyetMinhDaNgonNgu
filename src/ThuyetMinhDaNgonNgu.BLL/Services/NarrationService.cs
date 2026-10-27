@@ -32,17 +32,18 @@ public sealed class NarrationService : INarrationService
 
     public async Task<NarrationResult> CreateNarrationAsync(
         int locationId,
-        string languageCode)
+        string languageCode,
+        CancellationToken cancellationToken = default)
     {
-        var (location, language) = await GetSelectionAsync(locationId, languageCode);
-        var current = await _narrations.GetCurrentAsync(location.Id, language.Code);
+        var (location, language) = await GetSelectionAsync(locationId, languageCode, cancellationToken);
+        var current = await _narrations.GetCurrentAsync(location.Id, language.Code, cancellationToken);
 
         if (current is not null &&
             !string.IsNullOrWhiteSpace(current.Text) &&
             current.AudioObjectPath.StartsWith(CurrentAudioPathPrefix, StringComparison.Ordinal) &&
-            await _audioStorage.ExistsAsync(current.AudioObjectPath))
+            await _audioStorage.ExistsAsync(current.AudioObjectPath, cancellationToken))
         {
-            return ToResult(current, isCached: true);
+            return await ToResultAsync(current, isCached: true, cancellationToken);
         }
 
         string text = current is not null && !string.IsNullOrWhiteSpace(current.Text)
@@ -50,7 +51,8 @@ public sealed class NarrationService : INarrationService
             : await _aiProvider.GenerateNarrationAsync(
             location.Name,
             $"{location.City}. {location.Description}",
-            language.Code);
+            language.Code,
+            cancellationToken);
 
         return await PublishTextAsync(
             location,
@@ -58,22 +60,28 @@ public sealed class NarrationService : INarrationService
             text,
             current is null || string.IsNullOrWhiteSpace(current.Text) ? "ai" : current.Source,
             current,
-            isCached: false);
+            isCached: false,
+            cancellationToken);
     }
 
-    public async Task<string> CreateDraftAsync(int locationId, string languageCode)
+    public async Task<string> CreateDraftAsync(
+        int locationId,
+        string languageCode,
+        CancellationToken cancellationToken = default)
     {
-        var (location, language) = await GetSelectionAsync(locationId, languageCode);
+        var (location, language) = await GetSelectionAsync(locationId, languageCode, cancellationToken);
         return await _aiProvider.GenerateNarrationAsync(
             location.Name,
             $"{location.City}. {location.Description}",
-            language.Code);
+            language.Code,
+            cancellationToken);
     }
 
     public async Task<NarrationResult> PublishAsync(
         int locationId,
         string languageCode,
-        string text)
+        string text,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -85,33 +93,72 @@ public sealed class NarrationService : INarrationService
             throw new ArgumentException("Nội dung thuyết minh vượt quá 50000 ký tự.", nameof(text));
         }
 
-        var (location, language) = await GetSelectionAsync(locationId, languageCode);
-        var current = await _narrations.GetCurrentAsync(location.Id, language.Code);
+        var (location, language) = await GetSelectionAsync(locationId, languageCode, cancellationToken);
+        var current = await _narrations.GetCurrentAsync(location.Id, language.Code, cancellationToken);
         return await PublishTextAsync(
             location,
             language,
             text.Trim(),
             "admin",
             current,
-            isCached: false);
+            isCached: false,
+            cancellationToken);
     }
 
-    public async Task<IReadOnlyList<NarrationResult>> GetAllCurrentAsync()
+    public async Task<IReadOnlyList<NarrationResult>> GetAllCurrentAsync(
+        CancellationToken cancellationToken = default)
     {
-        var items = await _narrations.GetAllCurrentAsync();
-        return items.Select(item => ToResult(item, isCached: true)).ToArray();
+        var items = await _narrations.GetAllCurrentAsync(cancellationToken);
+        return items.Select(item => ToResult(item, isCached: true, audioUrl: null)).ToArray();
     }
 
-    public async Task<NarrationResult?> GetCurrentAsync(int locationId, string languageCode)
+    public async Task<NarrationResult?> GetCurrentAsync(
+        int locationId,
+        string languageCode,
+        CancellationToken cancellationToken = default)
     {
-        var (_, language) = await GetSelectionAsync(locationId, languageCode);
-        var item = await _narrations.GetCurrentAsync(locationId, language.Code);
-        return item is null ? null : ToResult(item, isCached: true);
+        var (_, language) = await GetSelectionAsync(locationId, languageCode, cancellationToken);
+        var item = await _narrations.GetCurrentAsync(locationId, language.Code, cancellationToken);
+        return item is null ? null : await ToResultAsync(item, isCached: true, cancellationToken);
+    }
+
+    public async Task DeleteAsync(
+        int locationId,
+        string languageCode,
+        CancellationToken cancellationToken = default)
+    {
+        var (_, language) = await GetSelectionAsync(locationId, languageCode, cancellationToken);
+        var narration = await _narrations.DeleteCurrentAsync(
+            locationId,
+            language.Code,
+            cancellationToken)
+            ?? throw new KeyNotFoundException(
+                "Không tìm thấy bản thuyết minh hiện hành cho địa điểm và ngôn ngữ này.");
+
+        if (await _narrations.IsAudioObjectReferencedAsync(
+                narration.AudioObjectPath,
+                cancellationToken))
+        {
+            return;
+        }
+
+        try
+        {
+            await _audioStorage.DeleteAsync(narration.AudioObjectPath, CancellationToken.None);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new HttpRequestException(
+                "Bản thuyết minh đã bị xóa nhưng không thể dọn tệp audio. Cần kiểm tra và dọn Storage.",
+                exception,
+                exception.StatusCode);
+        }
     }
 
     private async Task<(TouristLocation Location, SupportedLanguage Language)> GetSelectionAsync(
         int locationId,
-        string languageCode)
+        string languageCode,
+        CancellationToken cancellationToken)
     {
         if (locationId <= 0)
         {
@@ -123,10 +170,10 @@ public sealed class NarrationService : INarrationService
             throw new ArgumentException("Mã ngôn ngữ không được để trống.", nameof(languageCode));
         }
 
-        var location = await _locations.GetByIdAsync(locationId)
+        var location = await _locations.GetByIdAsync(locationId, cancellationToken)
             ?? throw new KeyNotFoundException($"Không tìm thấy địa điểm có mã {locationId}.");
         string normalizedCode = languageCode.Trim().ToLowerInvariant();
-        var language = await _languages.GetByCodeAsync(normalizedCode)
+        var language = await _languages.GetByCodeAsync(normalizedCode, cancellationToken)
             ?? throw new ArgumentException($"Ngôn ngữ '{languageCode}' chưa được hỗ trợ.", nameof(languageCode));
         return (location, language);
     }
@@ -137,7 +184,8 @@ public sealed class NarrationService : INarrationService
         string text,
         string source,
         NarrationRecord? previous,
-        bool isCached)
+        bool isCached,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -149,9 +197,9 @@ public sealed class NarrationService : INarrationService
             throw new InvalidOperationException("Nội dung do AI tạo vượt quá giới hạn lưu trữ.");
         }
 
-        var audio = await _audioProvider.GenerateAudioAsync(text, language.Code);
+        var audio = await _audioProvider.GenerateAudioAsync(text, language.Code, cancellationToken);
         string objectPath = $"{CurrentAudioPathPrefix}{location.Id}/{Guid.NewGuid():N}{audio.Extension}";
-        await _audioStorage.UploadAsync(objectPath, audio);
+        await _audioStorage.UploadAsync(objectPath, audio, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         var candidate = new NarrationRecord(
@@ -170,13 +218,13 @@ public sealed class NarrationService : INarrationService
         NarrationRecord saved;
         try
         {
-            saved = await _narrations.SaveCurrentAsync(candidate);
+            saved = await _narrations.SaveCurrentAsync(candidate, cancellationToken);
         }
         catch (Exception persistenceException)
         {
             try
             {
-                await _audioStorage.DeleteAsync(objectPath);
+                await _audioStorage.DeleteAsync(objectPath, CancellationToken.None);
             }
             catch (Exception cleanupException)
             {
@@ -189,10 +237,41 @@ public sealed class NarrationService : INarrationService
             throw;
         }
 
-        return ToResult(saved, isCached);
+        if (previous is not null &&
+            !string.Equals(previous.AudioObjectPath, saved.AudioObjectPath, StringComparison.Ordinal) &&
+            !await _narrations.IsAudioObjectReferencedAsync(
+                previous.AudioObjectPath,
+                cancellationToken))
+        {
+            try
+            {
+                await _audioStorage.DeleteAsync(previous.AudioObjectPath, CancellationToken.None);
+            }
+            catch (HttpRequestException exception)
+            {
+                throw new HttpRequestException(
+                    "Bản thuyết minh mới đã được lưu nhưng không thể dọn tệp audio cũ. Cần kiểm tra và dọn Storage.",
+                    exception,
+                    exception.StatusCode);
+            }
+        }
+
+        return await ToResultAsync(saved, isCached, cancellationToken);
     }
 
-    private NarrationResult ToResult(NarrationRecord item, bool isCached) =>
+    private async Task<NarrationResult> ToResultAsync(
+        NarrationRecord item,
+        bool isCached,
+        CancellationToken cancellationToken) =>
+        ToResult(
+            item,
+            isCached,
+            await _audioStorage.GetSignedUrlAsync(item.AudioObjectPath, cancellationToken));
+
+    private static NarrationResult ToResult(
+        NarrationRecord item,
+        bool isCached,
+        string? audioUrl) =>
         new(
             item.Id.ToString("D"),
             item.LocationId,
@@ -200,7 +279,7 @@ public sealed class NarrationService : INarrationService
             item.LanguageCode,
             item.LanguageName,
             item.Text,
-            _audioStorage.GetPublicUrl(item.AudioObjectPath),
+            audioUrl,
             "completed",
             item.CreatedAtUtc,
             item.UpdatedAtUtc,

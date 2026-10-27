@@ -22,7 +22,10 @@ public class GeminiAudioProvider : IAudioNarrationProvider
         _configuration = configuration;
     }
 
-    public async Task<GeneratedAudio> GenerateAudioAsync(string text, string languageCode)
+    public async Task<GeneratedAudio> GenerateAudioAsync(
+        string text,
+        string languageCode,
+        CancellationToken cancellationToken = default)
     {
         string apiKey = _configuration["Gemini:ApiKey"]
             ?? throw new ProviderConfigurationException("Chưa cấu hình Gemini:ApiKey.");
@@ -77,8 +80,8 @@ public class GeminiAudioProvider : IAudioNarrationProvider
             }
         });
 
-        using var response = await _httpClient.SendAsync(request);
-        string responseBody = await response.Content.ReadAsStringAsync();
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
