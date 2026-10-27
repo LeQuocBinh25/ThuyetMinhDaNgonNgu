@@ -12,6 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Threading.RateLimiting;
 using System.Security.Cryptography;
+using ThuyetMinhDaNgonNgu.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,6 +53,10 @@ builder.Services.AddScoped<ILocationService, LocationService>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
 builder.Services.AddScoped<INarrationService, NarrationService>();
 builder.Services.AddScoped<IAdminNarrationService, AdminNarrationService>();
+
+// Module mở rộng tránh conflict khi nhiều thành viên cùng phát triển
+builder.Services.AddAnalyticsModule(builder.Configuration);
+builder.Services.AddManagementModule(builder.Configuration);
 
 
 builder.Services.AddHttpClient<IAiNarrationProvider, AIProvider>(client =>
