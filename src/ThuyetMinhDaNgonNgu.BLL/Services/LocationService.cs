@@ -7,10 +7,17 @@ namespace ThuyetMinhDaNgonNgu.BLL.Services;
 public sealed class LocationService : ILocationService
 {
     private readonly ILocationRepository _repository;
+    private readonly INarrationRepository _narrations;
+    private readonly IAudioStorage _audioStorage;
 
-    public LocationService(ILocationRepository repository)
+    public LocationService(
+        ILocationRepository repository,
+        INarrationRepository narrations,
+        IAudioStorage audioStorage)
     {
         _repository = repository;
+        _narrations = narrations;
+        _audioStorage = audioStorage;
     }
 
     public Task<IReadOnlyList<TouristLocation>> GetAllAsync(CancellationToken cancellationToken = default) =>
@@ -65,14 +72,47 @@ public sealed class LocationService : ILocationService
             cancellationToken);
     }
 
-    public Task<ResourceDeleteResult> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<ResourceDeleteResult> DeleteAsync(
+        int id,
+        CancellationToken cancellationToken = default)
     {
         if (id <= 0)
         {
             throw new ArgumentException("Mã địa điểm phải là số nguyên dương.", nameof(id));
         }
 
-        return _repository.DeleteAsync(id, cancellationToken);
+        var result = await _repository.DeleteAsync(id, cancellationToken);
+        if (result.Result != ResourceDeleteResult.Deleted)
+        {
+            return result.Result;
+        }
+
+        var cleanupFailures = new List<HttpRequestException>();
+        foreach (string objectPath in result.AudioObjectPaths.Distinct(StringComparer.Ordinal))
+        {
+            if (await _narrations.IsAudioObjectReferencedAsync(objectPath, CancellationToken.None))
+            {
+                continue;
+            }
+
+            try
+            {
+                await _audioStorage.DeleteAsync(objectPath, CancellationToken.None);
+            }
+            catch (HttpRequestException exception)
+            {
+                cleanupFailures.Add(exception);
+            }
+        }
+
+        if (cleanupFailures.Count > 0)
+        {
+            throw new HttpRequestException(
+                "Địa điểm và các bản thuyết minh liên quan đã bị xóa nhưng không thể dọn một số tệp audio. Cần kiểm tra và dọn Storage.",
+                new AggregateException(cleanupFailures));
+        }
+
+        return ResourceDeleteResult.Deleted;
     }
 
     private static void ValidateLocation(

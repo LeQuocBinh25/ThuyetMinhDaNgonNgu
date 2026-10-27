@@ -84,7 +84,7 @@ Content-Type: application/json
   "longitude": 105.8542
 }
 
-### Xóa địa điểm (Admin; dùng ID dữ liệu kiểm thử local)
+### Xóa địa điểm cùng tất cả narration liên quan và audio không còn được tham chiếu (Admin)
 DELETE {{ThuyetMinhDaNgonNgu_HostAddress}}/api/locations/999999
 Authorization: Bearer {{adminLogin.response.body.accessToken}}
 

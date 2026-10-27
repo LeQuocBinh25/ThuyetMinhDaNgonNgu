@@ -20,9 +20,9 @@ public sealed class AdminAuthController(IConfiguration configuration) : Controll
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public ActionResult<AdminTokenResponse> Login([FromBody] AdminLoginRequest request)
     {
-        string expectedUsername = configuration["Admin:Username"]
+        string expectedUsername = configuration["AdminAuth:Username"]
             ?? throw new InvalidOperationException("Chưa cấu hình Admin:Username.");
-        string expectedPassword = configuration["Admin:Password"]
+        string expectedPassword = configuration["AdminAuth:Password"]
             ?? throw new InvalidOperationException("Chưa cấu hình Admin:Password.");
         string signingKey = configuration["Jwt:SigningKey"]
             ?? throw new InvalidOperationException("Chưa cấu hình Jwt:SigningKey.");

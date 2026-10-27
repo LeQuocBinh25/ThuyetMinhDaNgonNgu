@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using ThuyetMinhDaNgonNgu.API.DTOs.Responses;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
 using ThuyetMinhDaNgonNgu.API.DTOs.Requests;
@@ -11,10 +12,14 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers;
 public sealed class LocationsController : ControllerBase
 {
     private readonly ILocationService _service;
+    private readonly ILogger<LocationsController> _logger;
 
-    public LocationsController(ILocationService service)
+    public LocationsController(
+        ILocationService service,
+        ILogger<LocationsController> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -129,8 +134,9 @@ public sealed class LocationsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
     [EndpointSummary("Xóa địa điểm.")]
-    [EndpointDescription("Từ chối xóa nếu còn bài thuyết minh tham chiếu địa điểm.")]
+    [EndpointDescription("Xóa địa điểm cùng các bản thuyết minh liên quan; chỉ dọn audio không còn được bản ghi nào tham chiếu.")]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
         try
@@ -144,7 +150,7 @@ public sealed class LocationsController : ControllerBase
                         statusCode: StatusCodes.Status404NotFound),
                 ResourceDeleteResult.InUse =>
                     Problem(
-                        "Không thể xóa địa điểm đang được bài thuyết minh tham chiếu.",
+                        "Không thể xóa địa điểm vì còn dữ liệu khác tham chiếu địa điểm này.",
                         statusCode: StatusCodes.Status409Conflict),
                 _ => throw new InvalidOperationException("Kết quả xóa địa điểm không hợp lệ.")
             };
@@ -152,6 +158,13 @@ public sealed class LocationsController : ControllerBase
         catch (ArgumentException exception)
         {
             return Problem(exception.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Location {LocationId} was deleted but audio cleanup failed.", id);
+            return Problem(
+                exception.Message,
+                statusCode: StatusCodes.Status502BadGateway);
         }
     }
 

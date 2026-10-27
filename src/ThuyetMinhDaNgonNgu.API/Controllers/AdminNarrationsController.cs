@@ -72,6 +72,11 @@ public sealed class AdminNarrationsController(
     }
 
     [HttpPut("{locationId:int}/{languageCode}")]
+    [ProducesResponseType(typeof(NarrationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<NarrationResponse>> Publish(
         int locationId,
         string languageCode,
@@ -108,6 +113,13 @@ public sealed class AdminNarrationsController(
                 {
                     message = "Không thể hoàn tất xử lý audio thuyết minh. Nếu vừa cập nhật bản hiện hành, hãy kiểm tra trạng thái và Storage trước khi thử lại."
                 });
+        }
+        catch (ProviderResponseException exception)
+        {
+            logger.LogWarning(exception, "Gemini TTS returned no usable audio for the admin narration publish request.");
+            return StatusCode(
+                StatusCodes.Status502BadGateway,
+                new { message = exception.Message });
         }
     }
 

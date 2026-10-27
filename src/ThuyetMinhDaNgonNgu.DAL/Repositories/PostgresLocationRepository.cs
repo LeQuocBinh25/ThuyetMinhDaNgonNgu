@@ -88,32 +88,51 @@ public sealed class PostgresLocationRepository(AppDbContext dbContext) : ILocati
             entity.Longitude);
     }
 
-    public async Task<ResourceDeleteResult> DeleteAsync(
+    public async Task<LocationDeleteResult> DeleteAsync(
         int id,
         CancellationToken cancellationToken = default)
     {
-        try
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(async () =>
         {
-            int deleted = await dbContext.Locations
-                .Where(location => location.Id == id &&
-                    !dbContext.Narrations.Any(narration => narration.LocationId == id))
-                .ExecuteDeleteAsync(cancellationToken);
-
-            if (deleted > 0)
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            try
             {
-                return ResourceDeleteResult.Deleted;
-            }
+                bool exists = await dbContext.Locations
+                    .AnyAsync(location => location.Id == id, cancellationToken);
+                if (!exists)
+                {
+                    return new LocationDeleteResult(ResourceDeleteResult.NotFound, []);
+                }
 
-            return await dbContext.Locations.AnyAsync(
-                location => location.Id == id,
-                cancellationToken)
-                ? ResourceDeleteResult.InUse
-                : ResourceDeleteResult.NotFound;
-        }
-        catch (PostgresException exception) when
-            (exception.SqlState == PostgresErrorCodes.ForeignKeyViolation)
-        {
-            return ResourceDeleteResult.InUse;
-        }
+                var audioObjectPaths = await dbContext.Narrations
+                    .Where(narration => narration.LocationId == id)
+                    .Select(narration => narration.AudioObjectPath)
+                    .ToListAsync(cancellationToken);
+
+                await dbContext.Narrations
+                    .Where(narration => narration.LocationId == id)
+                    .ExecuteDeleteAsync(cancellationToken);
+
+                int deleted = await dbContext.Locations
+                    .Where(location => location.Id == id)
+                    .ExecuteDeleteAsync(cancellationToken);
+
+                if (deleted == 0)
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                    return new LocationDeleteResult(ResourceDeleteResult.NotFound, []);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+                return new LocationDeleteResult(ResourceDeleteResult.Deleted, audioObjectPaths);
+            }
+            catch (PostgresException exception) when
+                (exception.SqlState == PostgresErrorCodes.ForeignKeyViolation)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return new LocationDeleteResult(ResourceDeleteResult.InUse, []);
+            }
+        });
     }
 }

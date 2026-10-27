@@ -26,5 +26,5 @@ public interface ILocationRepository
         double? longitude,
         CancellationToken cancellationToken = default);
 
-    Task<ResourceDeleteResult> DeleteAsync(int id, CancellationToken cancellationToken = default);
+    Task<LocationDeleteResult> DeleteAsync(int id, CancellationToken cancellationToken = default);
 }

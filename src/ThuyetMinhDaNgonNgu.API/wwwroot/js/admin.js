@@ -57,7 +57,7 @@ async function api(url, options = {}) {
 
     const response = await fetch(url, { ...options, headers });
     const contentType = response.headers.get("content-type") || "";
-    const data = contentType.includes("application/json")
+    const data = contentType.includes("json")
         ? await response.json()
         : await response.text();
 
@@ -354,15 +354,32 @@ $("locationList").addEventListener("click", async (event) => {
     }
 
     if (button.dataset.action === "delete-location" &&
-        await confirmAction(`Xóa địa điểm "${location.name}"? Không thể xóa nếu bài thuyết minh đang tham chiếu địa điểm này.`)) {
+        await confirmAction(
+            `Xóa địa điểm "${location.name}" và tất cả bản thuyết minh liên quan? Audio không còn được bản ghi nào dùng sẽ bị dọn. Thao tác này không thể hoàn tác.`,
+            "Xóa địa điểm và nội dung liên quan")) {
         try {
             await api(`/api/locations/${encodeURIComponent(location.id)}`, {
                 method: "DELETE"
             });
-            await loadOptions();
-            msg("locationMessage", `Đã xóa địa điểm "${location.name}".`);
         } catch (error) {
             msg("locationMessage", error.message, true);
+            return;
+        }
+
+        if ($("locationId").value === String(location.id)) {
+            resetLocationForm();
+        }
+        if (String($("location").value) === String(location.id)) {
+            $("location").value = "";
+            $("narrationText").value = "";
+            msg("narrationMessage", "Địa điểm và các bản thuyết minh liên quan đã bị xóa.");
+        }
+
+        try {
+            await Promise.all([loadOptions(), refreshSaved()]);
+            msg("locationMessage", `Đã xóa địa điểm "${location.name}" và các bản thuyết minh liên quan.`);
+        } catch (error) {
+            msg("locationMessage", `Đã xóa địa điểm nhưng không tải lại được danh sách: ${error.message}`, true);
         }
     }
 });

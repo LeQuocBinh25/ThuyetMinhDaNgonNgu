@@ -89,23 +89,63 @@ public class GeminiAudioProvider : IAudioNarrationProvider
                 $"Gemini TTS lỗi ({(int)response.StatusCode}): {responseBody}");
         }
 
-        using var document = JsonDocument.Parse(responseBody);
+        try
+        {
+            using var document = JsonDocument.Parse(responseBody);
+            if (!document.RootElement.TryGetProperty("candidates", out var candidates) ||
+                candidates.ValueKind != JsonValueKind.Array)
+            {
+                throw new ProviderResponseException(
+                    "Gemini TTS không trả về dữ liệu audio. Hãy nhập nội dung thuyết minh dài hơn rồi thử lại.");
+            }
 
-        var inlineData = document.RootElement
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("inlineData");
-        string audioBase64 = inlineData
-            .GetProperty("data")
-            .GetString()
-            ?? throw new InvalidOperationException("Gemini không trả về âm thanh.");
+            foreach (var candidate in candidates.EnumerateArray())
+            {
+                if (!candidate.TryGetProperty("content", out var content) ||
+                    !content.TryGetProperty("parts", out var parts) ||
+                    parts.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
 
-        string mimeType = inlineData.TryGetProperty("mimeType", out var mimeTypeValue)
-            ? mimeTypeValue.GetString() ?? string.Empty
-            : string.Empty;
-        byte[] bytes = Convert.FromBase64String(audioBase64);
-        return CreateBrowserAudio(bytes, mimeType);
+                foreach (var part in parts.EnumerateArray())
+                {
+                    if (!part.TryGetProperty("inlineData", out var inlineData) ||
+                        !inlineData.TryGetProperty("data", out var dataElement) ||
+                        dataElement.ValueKind != JsonValueKind.String)
+                    {
+                        continue;
+                    }
+
+                    string? audioBase64 = dataElement.GetString();
+                    if (string.IsNullOrWhiteSpace(audioBase64))
+                    {
+                        continue;
+                    }
+
+                    string mimeType = inlineData.TryGetProperty("mimeType", out var mimeTypeValue)
+                        ? mimeTypeValue.GetString() ?? string.Empty
+                        : string.Empty;
+                    byte[] bytes = Convert.FromBase64String(audioBase64);
+                    return CreateBrowserAudio(bytes, mimeType);
+                }
+            }
+
+            throw new ProviderResponseException(
+                "Gemini TTS không tạo được audio cho nội dung này. Hãy nhập nội dung thuyết minh dài hơn rồi thử lại.");
+        }
+        catch (JsonException exception)
+        {
+            throw new ProviderResponseException(
+                "Gemini TTS trả về phản hồi không hợp lệ, không thể tạo audio.",
+                exception);
+        }
+        catch (FormatException exception)
+        {
+            throw new ProviderResponseException(
+                "Gemini TTS trả về dữ liệu audio không hợp lệ.",
+                exception);
+        }
     }
 
     private static GeneratedAudio CreateBrowserAudio(byte[] bytes, string mimeType)
