@@ -8,23 +8,35 @@ let languages = [];
 let savedNarrations = [];
 
 function token() {
-    const expiresAt = Number(sessionStorage.getItem(EXPIRY_KEY) || 0);
-    if (!sessionStorage.getItem(TOKEN_KEY) || expiresAt <= Date.now()) {
+    const storedToken = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+    const storedExpiry = localStorage.getItem(EXPIRY_KEY) || sessionStorage.getItem(EXPIRY_KEY);
+    const expiresAt = Number(storedExpiry || 0);
+    if (!storedToken || expiresAt <= Date.now()) {
         clearToken();
         return "";
     }
 
-    return sessionStorage.getItem(TOKEN_KEY);
+    localStorage.setItem(TOKEN_KEY, storedToken);
+    localStorage.setItem(EXPIRY_KEY, String(expiresAt));
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(EXPIRY_KEY);
+    return storedToken;
 }
 
 function clearToken() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(EXPIRY_KEY);
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(EXPIRY_KEY);
 }
 
 function showLogin(message = "") {
+    $("adminHeader").hidden = true;
     $("loginPanel").hidden = false;
     $("adminContent").hidden = true;
+    $("adminIntro").hidden = true;
+    $("adminFooter").hidden = true;
+    $("dashboardBtn").hidden = true;
     $("logoutBtn").hidden = true;
     if (message) {
         $("loginMessage").textContent = message;
@@ -33,8 +45,12 @@ function showLogin(message = "") {
 }
 
 function showAdmin() {
+    $("adminHeader").hidden = false;
     $("loginPanel").hidden = true;
     $("adminContent").hidden = false;
+    $("adminIntro").hidden = false;
+    $("adminFooter").hidden = false;
+    $("dashboardBtn").hidden = false;
     $("logoutBtn").hidden = false;
 }
 
@@ -190,10 +206,22 @@ function resetLocationForm() {
 }
 
 async function loadOptions() {
-    [locations, languages] = await Promise.all([
+    const [locationResult, languageResult] = await Promise.allSettled([
         api("/api/locations"),
         api("/api/languages")
     ]);
+
+    if (locationResult.status === "fulfilled") {
+        locations = locationResult.value;
+    } else {
+        locations = [];
+    }
+
+    if (languageResult.status === "fulfilled") {
+        languages = languageResult.value;
+    } else {
+        languages = [];
+    }
 
     const locationSelect = $("location");
     locationSelect.replaceChildren(new Option("-- Chọn địa điểm --", ""));
@@ -206,6 +234,23 @@ async function loadOptions() {
     renderLocations();
     refreshLanguageOptions();
     renderLanguages();
+
+    if (locationResult.status === "rejected") {
+        const errorMessage = locationResult.reason.message || "Lỗi không xác định.";
+        $("locationList").textContent = `Không tải được địa điểm: ${errorMessage}`;
+        locationSelect.replaceChildren(new Option("Không tải được địa điểm", ""));
+        msg("locationMessage", `Không tải được địa điểm: ${errorMessage}`, true);
+    } else {
+        msg("locationMessage", "");
+    }
+    if (languageResult.status === "rejected") {
+        const errorMessage = languageResult.reason.message || "Lỗi không xác định.";
+        $("languageList").textContent = `Không tải được ngôn ngữ: ${errorMessage}`;
+        $("language").replaceChildren(new Option("Không tải được ngôn ngữ", ""));
+        msg("languageMessage", `Không tải được danh sách ngôn ngữ: ${errorMessage}`, true);
+    } else {
+        msg("languageMessage", "");
+    }
 }
 
 function renderSaved() {
@@ -261,10 +306,10 @@ async function refreshSaved() {
 
 async function loadAdminData() {
     showAdmin();
-    try {
-        await Promise.all([loadOptions(), refreshSaved()]);
-    } catch (error) {
-        msg("narrationMessage", `Không tải được dữ liệu quản trị: ${error.message}`, true);
+    const results = await Promise.allSettled([loadOptions(), refreshSaved()]);
+    const savedResult = results[1];
+    if (savedResult.status === "rejected") {
+        msg("narrationMessage", `Không tải được danh sách bài thuyết minh: ${savedResult.reason.message}`, true);
     }
 }
 
@@ -279,8 +324,8 @@ $("loginForm").addEventListener("submit", async (event) => {
                 password: $("password").value
             })
         });
-        sessionStorage.setItem(TOKEN_KEY, result.accessToken);
-        sessionStorage.setItem(EXPIRY_KEY, String(new Date(result.expiresAtUtc).getTime()));
+        localStorage.setItem(TOKEN_KEY, result.accessToken);
+        localStorage.setItem(EXPIRY_KEY, String(new Date(result.expiresAtUtc).getTime()));
         $("password").value = "";
         await loadAdminData();
     } catch (error) {

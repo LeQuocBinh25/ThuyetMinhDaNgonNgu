@@ -1,5 +1,7 @@
+using System.Data.Common;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using ThuyetMinhDaNgonNgu.API.DTOs.Requests;
 using ThuyetMinhDaNgonNgu.API.DTOs.Responses;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
@@ -12,10 +14,14 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers;
 public sealed class LanguagesController : ControllerBase
 {
     private readonly ILanguageService _service;
+    private readonly ILogger<LanguagesController> _logger;
 
-    public LanguagesController(ILanguageService service)
+    public LanguagesController(
+        ILanguageService service,
+        ILogger<LanguagesController> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -24,11 +30,22 @@ public sealed class LanguagesController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<LanguageResponse>>> GetAll(
         CancellationToken cancellationToken)
     {
-        var response = (await _service.GetAllAsync(cancellationToken))
-            .Select(language => new LanguageResponse(language.Code, language.Name))
-            .ToArray();
+        try
+        {
+            var response = (await _service.GetAllAsync(cancellationToken))
+                .Select(language => new LanguageResponse(language.Code, language.Name))
+                .ToArray();
 
-        return Ok(response);
+            return Ok(response);
+        }
+        catch (DbException exception)
+        {
+            _logger.LogError(exception, "Database query failed while loading supported languages.");
+            return Problem(
+                "Không thể đọc danh sách ngôn ngữ từ cơ sở dữ liệu. Hãy kiểm tra kết nối database và log máy chủ.",
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Language database unavailable");
+        }
     }
 
     [HttpPost]
