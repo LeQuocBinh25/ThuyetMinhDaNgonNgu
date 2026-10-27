@@ -1,9 +1,9 @@
-
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using ThuyetMinhDaNgonNgu.BLL.Interfaces;
+using ThuyetMinhDaNgonNgu.BLL.Models;
 
 namespace ThuyetMinhDaNgonNgu.DAL.ExternalServices;
 
@@ -21,12 +21,14 @@ public class AIProvider : IAiNarrationProvider
     public async Task<string> GenerateNarrationAsync(
         string locationName,
         string description,
-        string languageCode)
+        string languageCode,
+        CancellationToken cancellationToken = default)
     {
         string apiKey = _configuration["Gemini:ApiKey"]
-            ?? throw new InvalidOperationException("Chưa cấu hình Gemini:ApiKey.");
+            ?? throw new ProviderConfigurationException(
+                "Chưa cấu hình Gemini:ApiKey.");
 
-        string model = _configuration["Gemini:Model"] ?? "gemini-3.8-flash";
+        string model = _configuration["Gemini:Model"] ?? "gemini-2.5-flash";
 
         string language = languageCode.ToLower() switch
         {
@@ -36,11 +38,11 @@ public class AIProvider : IAiNarrationProvider
             "ko" => "Korean",
             "fr" => "French",
             "zh" => "Chinese",
-            _ => throw new ArgumentException("Ngôn ngữ chưa được hỗ trợ.")
+            _ => languageCode
         };
 
         string prompt = $"""
-            Write a clear and engaging tourist narration in {language}.
+            Write a clear and engaging tourist narration in {language} (language code: {languageCode}).
             Location: {locationName}
             Description: {description}
             Only return the narration text.
@@ -66,8 +68,8 @@ public class AIProvider : IAiNarrationProvider
             }
         });
 
-        using var response = await _httpClient.SendAsync(request);
-        string responseBody = await response.Content.ReadAsStringAsync();
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -83,6 +85,7 @@ public class AIProvider : IAiNarrationProvider
             .GetProperty("parts")[0]
             .GetProperty("text")
             .GetString()
-            ?? throw new InvalidOperationException("Gemini không trả về nội dung.");
+            ?? throw new InvalidOperationException(
+                "Gemini không trả về nội dung.");
     }
 }

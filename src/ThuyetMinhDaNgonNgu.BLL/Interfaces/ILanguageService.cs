@@ -4,7 +4,17 @@ namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;
 
 public interface ILanguageService
 {
-    IReadOnlyList<SupportedLanguage> GetAll();
+    Task<IReadOnlyList<SupportedLanguage>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    SupportedLanguage? Add(string code, string name);
+    Task<SupportedLanguage?> AddAsync(
+        string code,
+        string name,
+        CancellationToken cancellationToken = default);
+
+    Task<SupportedLanguage?> UpdateAsync(
+        string code,
+        string name,
+        CancellationToken cancellationToken = default);
+
+    Task<ResourceDeleteResult> DeleteAsync(string code, CancellationToken cancellationToken = default);
 }

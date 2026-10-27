@@ -4,9 +4,16 @@ namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;
 
 public interface ILanguageRepository
 {
-    IReadOnlyList<SupportedLanguage> GetAll();
+    Task<IReadOnlyList<SupportedLanguage>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    SupportedLanguage? GetByCode(string code);
+    Task<SupportedLanguage?> GetByCodeAsync(string code, CancellationToken cancellationToken = default);
 
-    bool TryAdd(SupportedLanguage language);
+    Task<bool> TryAddAsync(SupportedLanguage language, CancellationToken cancellationToken = default);
+
+    Task<SupportedLanguage?> UpdateAsync(
+        string code,
+        string name,
+        CancellationToken cancellationToken = default);
+
+    Task<ResourceDeleteResult> DeleteAsync(string code, CancellationToken cancellationToken = default);
 }
