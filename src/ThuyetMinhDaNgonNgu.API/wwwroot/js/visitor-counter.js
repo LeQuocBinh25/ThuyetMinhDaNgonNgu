@@ -36,3 +36,36 @@
     console.error("Lỗi kết nối API:", error);
   }
 })();
+// Theo dõi trạng thái người truy cập
+const visitorKey = "vietguide_visitor_id";
+let visitorId = localStorage.getItem(visitorKey);
+
+if (!visitorId) {
+  visitorId = crypto.randomUUID();
+  localStorage.setItem(visitorKey, visitorId);
+}
+
+async function sendHeartbeat() {
+  try {
+    await fetch("/api/visitor-activity/heartbeat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        visitorId: visitorId,
+      }),
+    });
+  } catch (error) {
+    console.error("Không gửi được heartbeat:", error);
+  }
+}
+
+sendHeartbeat();
+setInterval(sendHeartbeat, 20000);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    sendHeartbeat();
+  }
+});

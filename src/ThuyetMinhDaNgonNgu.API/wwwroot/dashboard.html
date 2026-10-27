@@ -56,6 +56,11 @@
         background: #10513f;
       }
 
+      button:disabled {
+        opacity: 0.6;
+        cursor: wait;
+      }
+
       .cards {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -137,6 +142,22 @@
         padding: 16px 0;
       }
 
+      .active {
+        color: #16803c;
+        font-weight: bold;
+      }
+
+      .inactive {
+        color: #b42318;
+        font-weight: bold;
+      }
+
+      .visitor-id {
+        overflow-wrap: anywhere;
+        font-family: monospace;
+        font-size: 13px;
+      }
+
       @media (max-width: 650px) {
         body {
           padding: 16px;
@@ -163,7 +184,7 @@
         <button id="refreshButton">↻ Làm mới số liệu</button>
       </header>
 
-      <p id="status" class="status">Đang tải dữ liệu từ Supabase...</p>
+      <p id="status" class="status">Đang tải dữ liệu...</p>
 
       <section class="cards">
         <div class="card">
@@ -174,6 +195,40 @@
         <div class="card">
           <div class="card-label">Tổng lượt nghe đủ 15 giây</div>
           <div class="number" id="totalListens">—</div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Người truy cập đang hoạt động</div>
+          <div class="number" id="activeVisitors">—</div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Người truy cập không hoạt động</div>
+          <div class="number" id="inactiveVisitors">—</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Trạng thái người truy cập</h2>
+        <p class="subtitle">
+          TRUE: có tín hiệu trong vòng 60 giây gần nhất. FALSE: đã quá 60 giây
+          không có tín hiệu.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Visitor ID</th>
+                <th>is_active</th>
+              </tr>
+            </thead>
+            <tbody id="visitorRows">
+              <tr>
+                <td colspan="2" class="empty">Đang tải...</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -252,7 +307,7 @@
         tbody.innerHTML = rows
           .map(
             (row) => `
-            <tr>
+              <tr>
                 ${columns
                   .map((column) => {
                     const value = row[column.key];
@@ -263,10 +318,67 @@
                     return `<td>${display}</td>`;
                   })
                   .join("")}
-            </tr>
-        `,
+              </tr>
+            `,
           )
           .join("");
+      }
+
+      async function loadVisitorActivity() {
+        const tbody = document.getElementById("visitorRows");
+
+        try {
+          const response = await fetch("/api/visitor-activity/visitors", {
+            cache: "no-store",
+          });
+
+          if (!response.ok) {
+            throw new Error("API trạng thái trả về HTTP " + response.status);
+          }
+
+          const visitors = await response.json();
+
+          const activeCount = visitors.filter(
+            (visitor) => visitor.isActive === true,
+          ).length;
+
+          const inactiveCount = visitors.length - activeCount;
+
+          document.getElementById("activeVisitors").textContent =
+            numberFormat.format(activeCount);
+
+          document.getElementById("inactiveVisitors").textContent =
+            numberFormat.format(inactiveCount);
+
+          if (visitors.length === 0) {
+            tbody.innerHTML =
+              '<tr><td colspan="2" class="empty">Chưa có người truy cập được ghi nhận</td></tr>';
+            return;
+          }
+
+          tbody.innerHTML = visitors
+            .map((visitor) => {
+              const active = visitor.isActive === true;
+
+              return `
+                <tr>
+                  <td class="visitor-id">${escapeHtml(visitor.visitorId)}</td>
+                  <td class="${active ? "active" : "inactive"}">
+                    ${active ? "TRUE" : "FALSE"}
+                  </td>
+                </tr>
+              `;
+            })
+            .join("");
+        } catch (error) {
+          console.error("Lỗi tải trạng thái người truy cập:", error);
+
+          document.getElementById("activeVisitors").textContent = "—";
+          document.getElementById("inactiveVisitors").textContent = "—";
+
+          tbody.innerHTML =
+            '<tr><td colspan="2" class="empty error">Không tải được trạng thái người truy cập. Kiểm tra API.</td></tr>';
+        }
       }
 
       async function loadDashboard() {
@@ -275,7 +387,7 @@
 
         button.disabled = true;
         status.className = "status";
-        status.textContent = "Đang tải dữ liệu từ Supabase...";
+        status.textContent = "Đang tải dữ liệu...";
 
         try {
           const response = await fetch("/api/dashboard/analytics", {
@@ -315,11 +427,13 @@
         } catch (error) {
           status.className = "status error";
           status.textContent =
-            "Không tải được dữ liệu. Kiểm tra API và cấu hình Supabase.";
+            "Không tải được dữ liệu thống kê. Kiểm tra API và cấu hình Supabase.";
           console.error(error);
         } finally {
           button.disabled = false;
         }
+
+        await loadVisitorActivity();
       }
 
       document
@@ -327,6 +441,9 @@
         .addEventListener("click", loadDashboard);
 
       loadDashboard();
+
+      // Tự cập nhật trạng thái người truy cập mỗi 20 giây.
+      setInterval(loadVisitorActivity, 20000);
     </script>
   </body>
 </html>
