@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Http.Headers;
 using System.Text;
@@ -22,13 +21,16 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
         }
 
         private HttpRequestMessage CreateRequest(
-            HttpMethod method, string path, string? body = null)
+            HttpMethod method,
+            string path,
+            string? body = null)
         {
             var url = _config["Supabase:Url"]!.TrimEnd('/');
             var key = _config["Supabase:ServiceRoleKey"]!;
 
             var request = new HttpRequestMessage(
-                method, $"{url}/rest/v1/{path}");
+                method,
+                $"{url}/rest/v1/{path}");
 
             request.Headers.Add("apikey", key);
             request.Headers.Authorization =
@@ -37,18 +39,23 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
             if (body != null)
             {
                 request.Content = new StringContent(
-                    body, Encoding.UTF8, "application/json");
+                    body,
+                    Encoding.UTF8,
+                    "application/json");
             }
 
             return request;
         }
 
+        // Ghi nhận người truy cập đang hoạt động.
         [HttpPost("heartbeat")]
         public async Task<IActionResult> Heartbeat(
             [FromBody] HeartbeatRequest data)
         {
             if (data == null || data.VisitorId == Guid.Empty)
+            {
                 return BadRequest("visitorId không hợp lệ.");
+            }
 
             var id = data.VisitorId.ToString();
 
@@ -64,12 +71,18 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                 sessionJson);
 
             sessionRequest.Headers.TryAddWithoutValidation(
-                "Prefer", "resolution=merge-duplicates,return=minimal");
+                "Prefer",
+                "resolution=merge-duplicates,return=minimal");
 
-            var sessionResponse = await _http.SendAsync(sessionRequest);
+            using var sessionResponse =
+                await _http.SendAsync(sessionRequest);
 
             if (!sessionResponse.IsSuccessStatusCode)
-                return StatusCode(502, "Không cập nhật được visitor_sessions.");
+            {
+                return StatusCode(
+                    502,
+                    "Không cập nhật được visitor_sessions.");
+            }
 
             var heartbeatJson = JsonSerializer.Serialize(new
             {
@@ -83,25 +96,60 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                 heartbeatJson);
 
             heartbeatRequest.Headers.TryAddWithoutValidation(
-                "Prefer", "resolution=merge-duplicates,return=minimal");
+                "Prefer",
+                "resolution=merge-duplicates,return=minimal");
 
-            var heartbeatResponse = await _http.SendAsync(heartbeatRequest);
+            using var heartbeatResponse =
+                await _http.SendAsync(heartbeatRequest);
 
             if (!heartbeatResponse.IsSuccessStatusCode)
-                return StatusCode(502, "Không cập nhật được visitor_heartbeats.");
+            {
+                return StatusCode(
+                    502,
+                    "Không cập nhật được visitor_heartbeats.");
+            }
 
             return Ok(new { success = true });
         }
 
+        // Ghi nhận người truy cập rời trang.
         [HttpPost("leave")]
         public async Task<IActionResult> Leave(
             [FromBody] HeartbeatRequest data)
         {
             if (data == null || data.VisitorId == Guid.Empty)
+            {
                 return BadRequest("visitorId không hợp lệ.");
+            }
 
             var id = data.VisitorId.ToString();
 
+            // Làm heartbeat cũ hết hạn để không bị tính lại TRUE.
+            var oldHeartbeatJson = JsonSerializer.Serialize(new
+            {
+                last_seen = DateTimeOffset.UtcNow.AddSeconds(-31)
+            });
+
+            using var heartbeatRequest = CreateRequest(
+                HttpMethod.Patch,
+                $"visitor_heartbeats?visitor_id=eq.{Uri.EscapeDataString(id)}",
+                oldHeartbeatJson);
+
+            heartbeatRequest.Headers.TryAddWithoutValidation(
+                "Prefer",
+                "return=minimal");
+
+            using var heartbeatResponse =
+                await _http.SendAsync(heartbeatRequest);
+
+            if (!heartbeatResponse.IsSuccessStatusCode)
+            {
+                return StatusCode(
+                    502,
+                    "Không cập nhật được thời gian heartbeat.");
+            }
+
+            // Chuyển trạng thái thành FALSE.
             var patchJson = JsonSerializer.Serialize(new
             {
                 is_active = false
@@ -113,16 +161,22 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                 patchJson);
 
             request.Headers.TryAddWithoutValidation(
-                "Prefer", "return=minimal");
+                "Prefer",
+                "return=minimal");
 
-            var response = await _http.SendAsync(request);
+            using var response = await _http.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
-                return StatusCode(502, "Không cập nhật được trạng thái.");
+            {
+                return StatusCode(
+                    502,
+                    "Không cập nhật được trạng thái.");
+            }
 
             return Ok(new { success = true });
         }
 
+        // Lấy danh sách người truy cập cho dashboard.
         [HttpGet("visitors")]
         public async Task<IActionResult> GetVisitors()
         {
@@ -130,10 +184,15 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                 HttpMethod.Get,
                 "visitor_sessions?select=visitor_id,is_active&order=visitor_id");
 
-            var sessionsResponse = await _http.SendAsync(sessionsRequest);
+            using var sessionsResponse =
+                await _http.SendAsync(sessionsRequest);
 
             if (!sessionsResponse.IsSuccessStatusCode)
-                return StatusCode(502, "Không đọc được visitor_sessions.");
+            {
+                return StatusCode(
+                    502,
+                    "Không đọc được visitor_sessions.");
+            }
 
             var sessionsJson =
                 await sessionsResponse.Content.ReadAsStringAsync();
@@ -142,10 +201,15 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                 HttpMethod.Get,
                 "visitor_heartbeats?select=visitor_id,last_seen");
 
-            var heartbeatsResponse = await _http.SendAsync(heartbeatsRequest);
+            using var heartbeatsResponse =
+                await _http.SendAsync(heartbeatsRequest);
 
             if (!heartbeatsResponse.IsSuccessStatusCode)
-                return StatusCode(502, "Không đọc được visitor_heartbeats.");
+            {
+                return StatusCode(
+                    502,
+                    "Không đọc được visitor_heartbeats.");
+            }
 
             var heartbeatsJson =
                 await heartbeatsResponse.Content.ReadAsStringAsync();
@@ -175,12 +239,16 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                 var id = item.GetProperty("visitor_id").GetString();
 
                 if (id == null)
+                {
                     continue;
+                }
 
+                // TRUE nếu heartbeat trong 30 giây gần nhất.
                 var active = latest.TryGetValue(id, out var lastSeen)
-                    && now - lastSeen <= TimeSpan.FromSeconds(1);
+                    && now - lastSeen <= TimeSpan.FromSeconds(30);
 
-                var oldActive = item.GetProperty("is_active").GetBoolean();
+                var oldActive =
+                    item.GetProperty("is_active").GetBoolean();
 
                 if (active != oldActive)
                 {
@@ -195,7 +263,8 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                         patchJson);
 
                     patchRequest.Headers.TryAddWithoutValidation(
-                        "Prefer", "return=minimal");
+                        "Prefer",
+                        "return=minimal");
 
                     using var patchResponse =
                         await _http.SendAsync(patchRequest);
@@ -203,7 +272,8 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                     if (!patchResponse.IsSuccessStatusCode)
                     {
                         return StatusCode(
-                            502, "Không cập nhật được is_active trong Supabase.");
+                            502,
+                            "Không cập nhật được is_active trong Supabase.");
                     }
                 }
 

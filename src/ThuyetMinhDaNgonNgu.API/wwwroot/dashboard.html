@@ -211,7 +211,7 @@
       <section class="panel">
         <h2>Trạng thái người truy cập</h2>
         <p class="subtitle">
-          TRUE: có tín hiệu trong vòng 60 giây gần nhất. FALSE: đã quá 60 giây
+          TRUE: có tín hiệu trong vòng 30 giây gần nhất. FALSE: đã quá 30 giây
           không có tín hiệu.
         </p>
 
@@ -443,7 +443,7 @@
       loadDashboard();
 
       // Tự cập nhật trạng thái người truy cập mỗi 20 giây.
-      setInterval(loadVisitorActivity, 1000);
+      setInterval(loadVisitorActivity, 2000);
     </script>
   </body>
 </html>
