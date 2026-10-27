@@ -1,12 +1,19 @@
 (async function () {
-  const key = "vietguide_visit_id";
+  const key = "vietguide_last_visit_time";
+  const interval = 10 * 60 * 1000; // 10 phút
 
-  if (sessionStorage.getItem(key)) {
+  const now = Date.now();
+  const lastVisit = Number(localStorage.getItem(key) || 0);
+
+  // Chưa đủ 10 phút thì không tính lượt mới
+  if (now - lastVisit < interval) {
     return;
   }
 
+  // Ghi thời điểm trước khi gửi yêu cầu để tránh gửi trùng
+  localStorage.setItem(key, now.toString());
+
   const visitId = crypto.randomUUID();
-  sessionStorage.setItem(key, visitId);
 
   try {
     const response = await fetch("/api/visitor", {
@@ -20,11 +27,12 @@
     });
 
     if (!response.ok) {
-      sessionStorage.removeItem(key);
-      console.error("Không thể ghi nhận lượt truy cập.");
+      // Cho phép thử lại nếu API báo lỗi
+      localStorage.setItem(key, lastVisit.toString());
+      console.error("Không thể ghi nhận lượt truy cập:", response.status);
     }
   } catch (error) {
-    sessionStorage.removeItem(key);
+    localStorage.setItem(key, lastVisit.toString());
     console.error("Lỗi kết nối API:", error);
   }
 })();
