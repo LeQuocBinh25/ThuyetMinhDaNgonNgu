@@ -96,6 +96,39 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
         }
 
         [HttpGet("visitors")]
+
+
+[HttpPost("leave")]
+public async Task<IActionResult> Leave(
+    [FromBody] HeartbeatRequest data)
+{
+    if (data == null || data.VisitorId == Guid.Empty)
+        return BadRequest("visitorId không hợp lệ.");
+
+    var id = data.VisitorId.ToString();
+
+    var patchJson = JsonSerializer.Serialize(new
+    {
+        is_active = false
+    });
+
+    using var request = CreateRequest(
+        HttpMethod.Patch,
+        $"visitor_sessions?visitor_id=eq.{Uri.EscapeDataString(id)}",
+        patchJson);
+
+    request.Headers.TryAddWithoutValidation(
+        "Prefer", "return=minimal");
+
+    var response = await _http.SendAsync(request);
+
+    if (!response.IsSuccessStatusCode)
+        return StatusCode(502, "Không cập nhật được trạng thái.");
+
+    return Ok(new { success = true });
+}
+
+
         public async Task<IActionResult> GetVisitors()
         {
             using var sessionsRequest = CreateRequest(
@@ -127,7 +160,7 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
 
             foreach (var item in heartbeatsDoc.RootElement.EnumerateArray())
             {
-                var id = item.GetProperty("visitor_id").GetString();
+                var id = item.GetProperty("visitor_id").GetVisitors()String();
                 var timeText = item.GetProperty("last_seen").GetString();
 
                 if (id != null && DateTimeOffset.TryParse(timeText, out var time))

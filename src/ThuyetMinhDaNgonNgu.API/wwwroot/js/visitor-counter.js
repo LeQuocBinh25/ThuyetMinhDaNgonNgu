@@ -69,3 +69,17 @@ document.addEventListener("visibilitychange", () => {
     sendHeartbeat();
   }
 });
+
+function sendLeaveSignal() {
+  const data = JSON.stringify({
+    visitorId: visitorId,
+  });
+
+  const blob = new Blob([data], {
+    type: "application/json",
+  });
+
+  navigator.sendBeacon("/api/visitor-activity/leave", blob);
+}
+
+window.addEventListener("pagehide", sendLeaveSignal);
