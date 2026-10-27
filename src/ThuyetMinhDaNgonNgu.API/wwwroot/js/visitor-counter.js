@@ -71,15 +71,18 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function sendLeaveSignal() {
-  const data = JSON.stringify({
-    visitorId: visitorId,
+  fetch("/api/visitor-activity/leave", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      visitorId: visitorId,
+    }),
+    keepalive: true,
+  }).catch((error) => {
+    console.error("Không gửi được tín hiệu rời trang:", error);
   });
-
-  const blob = new Blob([data], {
-    type: "application/json",
-  });
-
-  navigator.sendBeacon("/api/visitor-activity/leave", blob);
 }
 
 window.addEventListener("pagehide", sendLeaveSignal);
