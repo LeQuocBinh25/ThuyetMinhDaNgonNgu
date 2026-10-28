@@ -32,9 +32,11 @@ let languages = [];
 let currentUserCoordinates = null;
 let activePlacesLanguage = "vi";
 let placesLanguageManuallySelected = false;
+let narrationLanguageManuallySelected = false;
 let placesLoaded = false;
 let placesLoadFailed = false;
 let activeSiteLanguage = "vi";
+let currentNarration = null;
 let vietGuideMap = null;
 let vietGuideMarkers = [];
 let featuredMarkers = [];
@@ -398,53 +400,118 @@ function fillLocationOptions() {
   });
 }
 
+function findSupportedLanguageCode(preferredCode) {
+  if (!preferredCode) return "";
+
+  const normalizedCode = String(preferredCode).toLowerCase();
+  const baseCode = normalizedCode.split("-")[0];
+  const supportedLanguage = languages.find((language) => {
+    const code = String(getLanguageCode(language) || "").toLowerCase();
+    return code === normalizedCode || code === baseCode;
+  });
+
+  return supportedLanguage ? String(getLanguageCode(supportedLanguage)) : "";
+}
+
 function choosePreferredLanguage() {
   if (!languageSelect || languages.length === 0) return "";
-
-  const supportedLanguages = languages
-    .map((language) => ({
-      code: String(getLanguageCode(language) || ""),
-      name: getLanguageName(language),
-    }))
-    .filter((language) => language.code);
 
   const browserLanguages = [
     ...(navigator.languages || []),
     navigator.language || "",
   ]
-    .map((language) => language.toLowerCase())
+    .map((language) => String(language).toLowerCase())
     .filter(Boolean);
 
-  // Ưu tiên ngôn ngữ trình duyệt khớp chính xác,
-  // sau đó thử khớp mã ngôn ngữ cơ bản.
-  let preferred = null;
-
   for (const browserLanguage of browserLanguages) {
-    preferred = supportedLanguages.find(
-      (language) => language.code.toLowerCase() === browserLanguage
-    );
-
-    if (preferred) break;
-
-    const baseLanguage = browserLanguage.split("-")[0];
-
-    preferred = supportedLanguages.find(
-      (language) => language.code.toLowerCase() === baseLanguage
-    );
-
-    if (preferred) break;
+    const preferredCode = findSupportedLanguageCode(browserLanguage);
+    if (preferredCode) {
+      languageSelect.value = preferredCode;
+      return preferredCode;
+    }
   }
 
-  // Nếu không hỗ trợ ngôn ngữ trình duyệt thì ưu tiên tiếng Việt.
-  if (!preferred) {
-    preferred = supportedLanguages.find(
-      (language) => language.code.toLowerCase() === "vi"
-    );
+  const vietnameseCode = findSupportedLanguageCode("vi");
+  languageSelect.value = vietnameseCode;
+  return vietnameseCode;
+}
+
+function getLocationLanguageCode(latitude, longitude) {
+  if (
+    latitude >= 8.18 &&
+    latitude <= 23.4 &&
+    longitude >= 102.14 &&
+    longitude <= 109.47
+  ) {
+    return "vi";
   }
 
-  // Nếu không có tiếng Việt thì để người dùng tự chọn.
-  languageSelect.value = preferred ? preferred.code : "";
-  return preferred ? preferred.code : "";
+  if (latitude >= 33 && latitude <= 39.5 && longitude >= 124 && longitude <= 132) {
+    return "ko";
+  }
+
+  if (latitude >= 24 && latitude <= 46 && longitude >= 123 && longitude <= 146) {
+    return "ja";
+  }
+
+  if (latitude >= 14 && latitude <= 33.5 && longitude >= -119 && longitude <= -86) {
+    return "es";
+  }
+
+  if (latitude >= 5 && latitude <= 18 && longitude >= -92 && longitude <= -77) {
+    return "es";
+  }
+
+  if (latitude >= -5 && latitude <= 13 && longitude >= -82 && longitude <= -67) {
+    return "es";
+  }
+
+  if (latitude >= -56 && latitude <= -17 && longitude >= -82 && longitude <= -53) {
+    return "es";
+  }
+
+  if (latitude >= 36 && latitude <= 44 && longitude >= -10 && longitude <= 5) {
+    return "es";
+  }
+
+  if (latitude >= 41 && latitude <= 51.5 && longitude >= -5.5 && longitude <= 9.8) {
+    return "fr";
+  }
+
+  if (latitude >= 35 && latitude <= 72 && longitude >= -11 && longitude <= 3) {
+    return "en";
+  }
+
+  if (latitude >= 18 && latitude <= 54 && longitude >= 73 && longitude <= 135) {
+    return "zh";
+  }
+
+  if (latitude >= 24 && latitude <= 50 && longitude >= -125 && longitude <= -66) {
+    return "en";
+  }
+
+  if (latitude >= -45 && latitude <= -10 && longitude >= 112 && longitude <= 154) {
+    return "en";
+  }
+
+  return "";
+}
+
+function applyLocationLanguagePreference(latitude, longitude) {
+  const locationLanguageCode = findSupportedLanguageCode(
+    getLocationLanguageCode(latitude, longitude),
+  );
+  if (!locationLanguageCode) return;
+
+  if (!narrationLanguageManuallySelected && languageSelect) {
+    languageSelect.value = locationLanguageCode;
+  }
+
+  if (!placesLanguageManuallySelected && placesLanguageSelect) {
+    placesLanguageSelect.value = locationLanguageCode;
+    activePlacesLanguage = locationLanguageCode;
+    renderPlacesList();
+  }
 }
 
 function fillPlacesLanguageOptions(preferredCode) {
@@ -618,6 +685,7 @@ function clearCurrentNarration() {
     resultSection.hidden = true;
     resultSection.style.display = "none";
   }
+  currentNarration = null;
 }
 
 if (locationSelect) {
@@ -643,6 +711,7 @@ if (locationSelect) {
 
 if (languageSelect) {
   languageSelect.addEventListener("change", () => {
+    narrationLanguageManuallySelected = true;
     // Dừng audio cũ và tải ngay narration theo ngôn ngữ vừa chọn.
     clearCurrentNarration();
     autoNarrationKey = "";
@@ -664,6 +733,12 @@ function displayNarration(item) {
   if (!item) {
     return;
   }
+
+  currentNarration = {
+    locationId: item.locationId,
+    locationName: item.locationName || item.name || "Địa điểm",
+    languageCode: item.languageCode || "",
+  };
 
   const locationName = item.locationName || item.name || "Địa điểm";
 
@@ -903,6 +978,7 @@ function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
 // Cập nhật dấu vị trí GPS tự động, không phụ thuộc nút "Tìm vị trí gần tôi".
 function updateUserLocationOnMap(latitude, longitude, centerMap = false) {
   currentUserCoordinates = [latitude, longitude];
+  applyLocationLanguagePreference(latitude, longitude);
   renderPlacesList();
 
   if (!vietGuideMap || typeof L === "undefined") return;
@@ -1563,12 +1639,15 @@ function refreshVietGuideMap() {
 (() => {
   if (!audioPlayer) return;
 
+  const LISTEN_THRESHOLD_MS = 15000;
+  const RETRY_DELAY_MS = 5000;
   let listenedMs = 0;
   let lastTick = null;
   let lastAudioTime = null;
   let recorded = false;
   let recording = false;
-  let activeNarrationKey = "";
+  let listenId = crypto.randomUUID();
+  let nextRecordAttemptAt = 0;
 
   function resetListenSession() {
     listenedMs = 0;
@@ -1576,6 +1655,8 @@ function refreshVietGuideMap() {
     lastAudioTime = null;
     recorded = false;
     recording = false;
+    listenId = crypto.randomUUID();
+    nextRecordAttemptAt = 0;
   }
 
   function resetContinuousTimer() {
@@ -1598,10 +1679,17 @@ function refreshVietGuideMap() {
     }
   });
   audioPlayer.addEventListener("emptied", resetListenSession);
-  audioPlayer.addEventListener("ended", resetListenSession);
+  audioPlayer.addEventListener("ended", resetContinuousTimer);
 
   setInterval(async () => {
-    if (audioPlayer.paused || audioPlayer.ended || audioPlayer.seeking || !audioPlayer.currentSrc || recorded || recording) {
+    if (
+      audioPlayer.paused ||
+      audioPlayer.ended ||
+      audioPlayer.seeking ||
+      !audioPlayer.currentSrc ||
+      recorded ||
+      recording
+    ) {
       lastTick = null;
       lastAudioTime = null;
       return;
@@ -1621,46 +1709,68 @@ function refreshVietGuideMap() {
     lastTick = now;
     lastAudioTime = currentAudioTime;
 
-    if (listenedMs >= 15000) {
-      recorded = true;
-      recording = true;
-      try {
-        const selectedLocation = locations.find((location) => String(getLocationId(location)) === String(locationSelect?.value || ""));
-        const selectedLanguage = languageSelect?.value || null;
-
-        // visitorId do visitor-counter.js tạo và lưu trong localStorage.
-        const visitorId = localStorage.getItem("vietguide_visitor_id");
-
-        const parsedLocationId = selectedLocation
-          ? Number(getLocationId(selectedLocation))
-          : NaN;
-
-        const response = await fetch("/api/audio-listens", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            listenId: crypto.randomUUID(),
-            visitorId: visitorId || null,
-            locationId: Number.isInteger(parsedLocationId) ? parsedLocationId : null,
-            locationName: selectedLocation ? getLocationName(selectedLocation) : (locationSelect?.selectedOptions?.[0]?.textContent?.trim() || null),
-            languageCode: selectedLanguage,
-          }),
-        });
-        if (!response.ok) throw new Error(`Không lưu được lượt nghe (HTTP ${response.status}).`);
-        console.log("Đã ghi nhận lượt nghe đủ 15 giây liên tục.");
-      } catch (error) {
-        // Không tự tạo nhiều lượt nghe trùng trong cùng một phiên phát.
-        console.error("Lỗi ghi nhận lượt nghe:", error);
-      } finally {
-        recording = false;
-      }
+    if (
+      listenedMs < LISTEN_THRESHOLD_MS ||
+      recording ||
+      recorded ||
+      now < nextRecordAttemptAt
+    ) {
+      return;
     }
 
+    const narration = currentNarration;
+    if (!narration?.locationId || !narration.languageCode) {
+      console.error("Không ghi nhận được lượt nghe: thiếu thông tin narration đang phát.");
+      recorded = true;
+      return;
+    }
 
+    recording = true;
+    try {
+      let visitorId = null;
+      try {
+        const storedVisitorId = localStorage.getItem("vietguide_visitor_id");
+        if (
+          storedVisitorId &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            storedVisitorId,
+          )
+        ) {
+          visitorId = storedVisitorId;
+        }
+      } catch (error) {
+        console.warn("Không đọc được mã khách truy cập; sẽ ghi lượt nghe ẩn danh.", error);
+      }
 
+      const locationId = Number(narration.locationId);
+      const response = await fetch("/api/audio-listens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          listenId,
+          visitorId,
+          locationId: Number.isInteger(locationId) ? locationId : null,
+          locationName: narration.locationName,
+          languageCode: narration.languageCode,
+        }),
+      });
 
-  },
-    250);
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error(
+          `Không lưu được lượt nghe (HTTP ${response.status}).${details ? ` ${details}` : ""}`,
+        );
+      }
+
+      recorded = true;
+      console.log("Đã ghi nhận lượt nghe đủ 15 giây liên tục.");
+    } catch (error) {
+      nextRecordAttemptAt = performance.now() + RETRY_DELAY_MS;
+      console.error("Lỗi ghi nhận lượt nghe; sẽ thử lại:", error);
+    } finally {
+      recording = false;
+    }
+  }, 250);
 })();
 /* ===== DOI NGON NGU GIAO DIEN VIETGUIDE ===== */
 
@@ -1940,15 +2050,8 @@ function setButtonLabel(selector, value) {
 function setSiteLanguage(language) {
   const translations = siteTranslations[language] || siteTranslations.vi;
   activeSiteLanguage = siteTranslations[language] ? language : "vi";
-  activePlacesLanguage = language;
 
   document.documentElement.lang = language;
-  if (placesLanguageSelect) {
-    const optionExists = Array.from(placesLanguageSelect.options).some(
-      (option) => option.value.toLowerCase() === language.toLowerCase(),
-    );
-    if (optionExists) placesLanguageSelect.value = language;
-  }
 
   const label = document.getElementById("siteLanguageLabel");
   if (label) {
@@ -2072,11 +2175,7 @@ function initSiteLanguageMenu() {
       const language = placesLanguageSelect.value;
       activePlacesLanguage = language;
       placesLanguageManuallySelected = true;
-      if (siteTranslations[language]) {
-        setSiteLanguage(language);
-      } else {
-        renderPlacesList();
-      }
+      renderPlacesList();
 
       const narrationOption = Array.from(languageSelect?.options || []).find(
         (option) => option.value.toLowerCase() === language.toLowerCase(),

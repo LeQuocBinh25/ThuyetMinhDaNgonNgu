@@ -21,7 +21,8 @@ public class AudioListenController : ControllerBase
 
     [HttpPost]
     public async Task<IActionResult> RecordListen(
-        [FromBody] AudioListenRequest request)
+        [FromBody] AudioListenRequest request,
+        CancellationToken cancellationToken)
     {
         if (request == null || request.ListenId == Guid.Empty)
         {
@@ -53,27 +54,35 @@ public class AudioListenController : ControllerBase
 
         try
         {
-            // Bảo đảm dòng visitor_tracking tồn tại để không vi phạm khóa ngoại.
+            // Upsert như heartbeat để bảo đảm visitor tồn tại trước khi ghi lượt nghe.
             if (visitorId != null)
             {
                 using var ensureRequest = CreateRequest(
                     HttpMethod.Post,
-                    $"{baseUrl}/rest/v1/rpc/track_heartbeat",
+                    $"{baseUrl}/rest/v1/visitor_tracking?on_conflict=visitor_id",
                     serviceRoleKey);
 
                 ensureRequest.Content = JsonContent.Create(new
                 {
-                    p_visitor_id = visitorId.Value
+                    visitor_id = visitorId.Value,
+                    last_seen = DateTimeOffset.UtcNow,
+                    is_active = true
                 });
+                ensureRequest.Headers.Add(
+                    "Prefer",
+                    "resolution=merge-duplicates,return=minimal");
 
                 using var ensureResponse =
-                    await client.SendAsync(ensureRequest);
+                    await client.SendAsync(ensureRequest, cancellationToken);
 
                 if (!ensureResponse.IsSuccessStatusCode)
                 {
+                    var error = await ensureResponse.Content.ReadAsStringAsync(
+                        cancellationToken);
                     return StatusCode(502, new
                     {
-                        message = "Không thể xác nhận người truy cập."
+                        message = "Không thể xác nhận người truy cập.",
+                        detail = error
                     });
                 }
             }
@@ -96,11 +105,14 @@ public class AudioListenController : ControllerBase
                 language_code = request.LanguageCode
             });
 
-            using var response = await client.SendAsync(httpRequest);
+            using var response = await client.SendAsync(
+                httpRequest,
+                cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
+                var error = await response.Content.ReadAsStringAsync(
+                    cancellationToken);
 
                 return StatusCode(502, new
                 {
@@ -111,11 +123,12 @@ public class AudioListenController : ControllerBase
 
             return Ok(new { message = "Đã ghi nhận lượt nghe." });
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
             return StatusCode(502, new
             {
-                message = "Không thể kết nối Supabase."
+                message = "Không thể kết nối Supabase.",
+                detail = exception.Message
             });
         }
     }
