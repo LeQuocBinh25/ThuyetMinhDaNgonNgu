@@ -76,7 +76,7 @@
 .gps-button:disabled { opacity: .65; cursor: wait; transform: none; }
 .gps-button span { font-size: 19px; }
 .gps-help { flex: 1 1 250px; margin: 0; color: #78847d; font-size: 12px; line-height: 1.6; }
-.gps-user-marker { width: 18px; height: 18px; border: 3px solid #fff; border-radius: 50%; background: #2478ff; box-shadow: 0 0 0 7px #2478ff35; }
+.gps-user-marker { display: block; width: 25px; height: 41px; filter: drop-shadow(0 1px 2px #0005); }
 .gps-distance { font-weight: 700; color: #174c3f; }
 
 .site-language {

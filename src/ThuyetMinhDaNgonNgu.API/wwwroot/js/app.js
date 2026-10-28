@@ -986,9 +986,9 @@ function updateUserLocationOnMap(latitude, longitude, centerMap = false) {
   if (!userLocationMarker) {
     const icon = L.divIcon({
       className: "",
-      html: '<span class="gps-user-marker"></span>',
-      iconSize: [18, 18],
-      iconAnchor: [9, 9],
+      html: '<svg class="gps-user-marker" viewBox="0 0 25 41" aria-hidden="true"><path d="M12.5 0C5.6 0 0 5.6 0 12.5c0 9.4 12.5 28.5 12.5 28.5S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z" fill="#e53935" stroke="#fff" stroke-width="1.5"/><circle cx="12.5" cy="12.5" r="5" fill="#fff"/></svg>',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
     });
 
     userLocationMarker = L.marker([latitude, longitude], {
