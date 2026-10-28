@@ -49,7 +49,6 @@ public sealed class LanguagesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(LanguageResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [EndpointSummary("Tạo ngôn ngữ mới.")]
@@ -80,7 +79,6 @@ public sealed class LanguagesController : ControllerBase
     }
 
     [HttpPut("{code}")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(LanguageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -107,7 +105,6 @@ public sealed class LanguagesController : ControllerBase
     }
 
     [HttpDelete("{code}")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

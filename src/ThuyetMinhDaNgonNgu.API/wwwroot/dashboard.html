@@ -1,449 +1,453 @@
 <!doctype html>
 <html lang="vi">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>VietGuide - Dashboard thống kê</title>
 
-    <style>
-      * {
-        box-sizing: border-box;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VietGuide - Dashboard thống kê</title>
+  <link rel="stylesheet" href="css/admin.css">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
+    body {
+      margin: 0;
+      padding: 28px;
+      background: #f3f6f5;
+      color: #18352f;
+      font-family: Arial, sans-serif;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: #6b7c77;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 12px 18px;
+      background: #176b55;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background: #10513f;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .card,
+    .panel {
+      padding: 24px;
+      background: white;
+      border: 1px solid #e2e9e6;
+      border-radius: 14px;
+      box-shadow: 0 4px 15px #18352f08;
+    }
+
+    .card-label {
+      color: #6b7c77;
+      font-size: 15px;
+    }
+
+    .number {
+      margin-top: 14px;
+      font-size: 38px;
+      font-weight: bold;
+      color: #176b55;
+    }
+
+    .panel {
+      margin-bottom: 22px;
+      overflow: hidden;
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      font-size: 20px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 420px;
+    }
+
+    th,
+    td {
+      padding: 13px 12px;
+      border-bottom: 1px solid #edf1ef;
+      text-align: left;
+    }
+
+    th {
+      background: #f7f9f8;
+      color: #526760;
+      font-size: 13px;
+    }
+
+    td:last-child,
+    th:last-child {
+      text-align: right;
+    }
+
+    .status {
+      margin: 0 0 18px;
+      color: #6b7c77;
+      font-size: 14px;
+    }
+
+    .error {
+      color: #b42318;
+    }
+
+    .empty {
+      color: #6b7c77;
+      padding: 16px 0;
+    }
+
+    .active {
+      color: #16803c;
+      font-weight: bold;
+    }
+
+    .inactive {
+      color: #b42318;
+      font-weight: bold;
+    }
+
+    .visitor-id {
+      overflow-wrap: anywhere;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    @media (max-width: 650px) {
       body {
-        margin: 0;
-        padding: 28px;
-        background: #f3f6f5;
-        color: #18352f;
-        font-family: Arial, sans-serif;
-      }
-
-      .container {
-        max-width: 1200px;
-        margin: auto;
-      }
-
-      header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 16px;
-        margin-bottom: 28px;
+        padding: 16px;
       }
 
       h1 {
-        margin: 0 0 8px;
-        font-size: 30px;
-      }
-
-      .subtitle {
-        margin: 0;
-        color: #6b7c77;
-      }
-
-      button {
-        border: 0;
-        border-radius: 8px;
-        padding: 12px 18px;
-        background: #176b55;
-        color: white;
-        cursor: pointer;
-        font-weight: bold;
-      }
-
-      button:hover {
-        background: #10513f;
-      }
-
-      button:disabled {
-        opacity: 0.6;
-        cursor: wait;
+        font-size: 24px;
       }
 
       .cards {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 18px;
-        margin-bottom: 24px;
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <nav> <a class="brand" href="admin.html"><span>V</span> VietGuide <small>ADMIN CONSOLE</small></a>
+    </nav>
+
+    <header>
+      <div>
+        <h1>Dashboard</h1>
+      </div>
+      <button id="refreshButton">↻ Làm mới số liệu</button>
+    </header>
+
+    <p id="status" class="status">Đang tải dữ liệu...</p>
+
+    <section class="cards">
+      <div class="card">
+        <div class="card-label">Tổng lượt truy cập website</div>
+        <div class="number" id="totalVisits">—</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Tổng lượt nghe</div>
+        <div class="number" id="totalListens">—</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Người truy cập đang hoạt động</div>
+        <div class="number" id="activeVisitors">—</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Người truy cập không hoạt động</div>
+        <div class="number" id="inactiveVisitors">—</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Trạng thái người truy cập</h2>
+      <!-- <p class="subtitle">
+        TRUE: có tín hiệu trong vòng 30 giây gần nhất. FALSE: đã quá 30 giây
+        không có tín hiệu.
+      </p> -->
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Visitor ID</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="visitorRows">
+            <tr>
+              <td colspan="2" class="empty">Đang tải...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Lượt nghe theo bài / địa điểm</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Địa điểm</th>
+              <th>Tổng lượt nghe</th>
+            </tr>
+          </thead>
+          <tbody id="locationRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Lượt nghe theo ngôn ngữ</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Mã ngôn ngữ</th>
+              <th>Tổng lượt nghe</th>
+            </tr>
+          </thead>
+          <tbody id="languageRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Lượt nghe theo bài và ngôn ngữ</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Địa điểm / bài thuyết minh</th>
+              <th>Ngôn ngữ</th>
+              <th>Tổng lượt nghe</th>
+            </tr>
+          </thead>
+          <tbody id="detailRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const numberFormat = new Intl.NumberFormat("vi-VN");
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(
+        /[&<>"']/g,
+        (char) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[char],
+      );
+    }
+
+    function renderRows(elementId, rows, columns) {
+      const tbody = document.getElementById(elementId);
+
+      if (!rows || rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${columns.length}" class="empty">Chưa có dữ liệu</td></tr>`;
+        return;
       }
 
-      .card,
-      .panel {
-        padding: 24px;
-        background: white;
-        border: 1px solid #e2e9e6;
-        border-radius: 14px;
-        box-shadow: 0 4px 15px #18352f08;
-      }
+      tbody.innerHTML = rows
+        .map(
+          (row) => `
+              <tr>
+                ${columns
+              .map((column) => {
+                const value = row[column.key];
+                const display = column.number
+                  ? numberFormat.format(value ?? 0)
+                  : escapeHtml(value || "Chưa xác định");
 
-      .card-label {
-        color: #6b7c77;
-        font-size: 15px;
-      }
+                return `<td>${display}</td>`;
+              })
+              .join("")}
+              </tr>
+            `,
+        )
+        .join("");
+    }
 
-      .number {
-        margin-top: 14px;
-        font-size: 38px;
-        font-weight: bold;
-        color: #176b55;
-      }
+    async function loadVisitorActivity() {
+      const tbody = document.getElementById("visitorRows");
 
-      .panel {
-        margin-bottom: 22px;
-        overflow: hidden;
-      }
+      try {
+        const response = await fetch("/api/visitor-activity/visitors", {
+          cache: "no-store",
+        });
 
-      h2 {
-        margin: 0 0 18px;
-        font-size: 20px;
-      }
-
-      .table-wrap {
-        overflow-x: auto;
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        min-width: 420px;
-      }
-
-      th,
-      td {
-        padding: 13px 12px;
-        border-bottom: 1px solid #edf1ef;
-        text-align: left;
-      }
-
-      th {
-        background: #f7f9f8;
-        color: #526760;
-        font-size: 13px;
-      }
-
-      td:last-child,
-      th:last-child {
-        text-align: right;
-      }
-
-      .status {
-        margin: 0 0 18px;
-        color: #6b7c77;
-        font-size: 14px;
-      }
-
-      .error {
-        color: #b42318;
-      }
-
-      .empty {
-        color: #6b7c77;
-        padding: 16px 0;
-      }
-
-      .active {
-        color: #16803c;
-        font-weight: bold;
-      }
-
-      .inactive {
-        color: #b42318;
-        font-weight: bold;
-      }
-
-      .visitor-id {
-        overflow-wrap: anywhere;
-        font-family: monospace;
-        font-size: 13px;
-      }
-
-      @media (max-width: 650px) {
-        body {
-          padding: 16px;
+        if (!response.ok) {
+          throw new Error("API trạng thái trả về HTTP " + response.status);
         }
 
-        h1 {
-          font-size: 24px;
-        }
+        const visitors = await response.json();
 
-        .cards {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
-  </head>
+        const activeCount = visitors.filter(
+          (visitor) => visitor.isActive === true,
+        ).length;
 
-  <body>
-    <div class="container">
-      <header>
-        <div>
-          <h1>VietGuide Dashboard</h1>
-          <p class="subtitle">Thống kê lượt truy cập và nghe thuyết minh</p>
-        </div>
-        <button id="refreshButton">↻ Làm mới số liệu</button>
-      </header>
+        const inactiveCount = visitors.length - activeCount;
 
-      <p id="status" class="status">Đang tải dữ liệu...</p>
+        document.getElementById("activeVisitors").textContent =
+          numberFormat.format(activeCount);
 
-      <section class="cards">
-        <div class="card">
-          <div class="card-label">Tổng lượt truy cập website</div>
-          <div class="number" id="totalVisits">—</div>
-        </div>
+        document.getElementById("inactiveVisitors").textContent =
+          numberFormat.format(inactiveCount);
 
-        <div class="card">
-          <div class="card-label">Tổng lượt nghe đủ 15 giây</div>
-          <div class="number" id="totalListens">—</div>
-        </div>
-
-        <div class="card">
-          <div class="card-label">Người truy cập đang hoạt động</div>
-          <div class="number" id="activeVisitors">—</div>
-        </div>
-
-        <div class="card">
-          <div class="card-label">Người truy cập không hoạt động</div>
-          <div class="number" id="inactiveVisitors">—</div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Trạng thái người truy cập</h2>
-        <p class="subtitle">
-          TRUE: có tín hiệu trong vòng 30 giây gần nhất. FALSE: đã quá 30 giây
-          không có tín hiệu.
-        </p>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Visitor ID</th>
-                <th>is_active</th>
-              </tr>
-            </thead>
-            <tbody id="visitorRows">
-              <tr>
-                <td colspan="2" class="empty">Đang tải...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Lượt nghe theo bài / địa điểm</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Địa điểm</th>
-                <th>Tổng lượt nghe</th>
-              </tr>
-            </thead>
-            <tbody id="locationRows"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Lượt nghe theo ngôn ngữ</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Mã ngôn ngữ</th>
-                <th>Tổng lượt nghe</th>
-              </tr>
-            </thead>
-            <tbody id="languageRows"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Lượt nghe theo bài và ngôn ngữ</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Địa điểm / bài thuyết minh</th>
-                <th>Ngôn ngữ</th>
-                <th>Tổng lượt nghe</th>
-              </tr>
-            </thead>
-            <tbody id="detailRows"></tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-
-    <script>
-      const numberFormat = new Intl.NumberFormat("vi-VN");
-
-      function escapeHtml(value) {
-        return String(value ?? "").replace(
-          /[&<>"']/g,
-          (char) =>
-            ({
-              "&": "&amp;",
-              "<": "&lt;",
-              ">": "&gt;",
-              '"': "&quot;",
-              "'": "&#39;",
-            })[char],
-        );
-      }
-
-      function renderRows(elementId, rows, columns) {
-        const tbody = document.getElementById(elementId);
-
-        if (!rows || rows.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="${columns.length}" class="empty">Chưa có dữ liệu</td></tr>`;
+        if (visitors.length === 0) {
+          tbody.innerHTML =
+            '<tr><td colspan="2" class="empty">Chưa có người truy cập được ghi nhận</td></tr>';
           return;
         }
 
-        tbody.innerHTML = rows
-          .map(
-            (row) => `
-              <tr>
-                ${columns
-                  .map((column) => {
-                    const value = row[column.key];
-                    const display = column.number
-                      ? numberFormat.format(value ?? 0)
-                      : escapeHtml(value || "Chưa xác định");
+        tbody.innerHTML = visitors
+          .map((visitor) => {
+            const active = visitor.isActive === true;
 
-                    return `<td>${display}</td>`;
-                  })
-                  .join("")}
-              </tr>
-            `,
-          )
-          .join("");
-      }
-
-      async function loadVisitorActivity() {
-        const tbody = document.getElementById("visitorRows");
-
-        try {
-          const response = await fetch("/api/visitor-activity/visitors", {
-            cache: "no-store",
-          });
-
-          if (!response.ok) {
-            throw new Error("API trạng thái trả về HTTP " + response.status);
-          }
-
-          const visitors = await response.json();
-
-          const activeCount = visitors.filter(
-            (visitor) => visitor.isActive === true,
-          ).length;
-
-          const inactiveCount = visitors.length - activeCount;
-
-          document.getElementById("activeVisitors").textContent =
-            numberFormat.format(activeCount);
-
-          document.getElementById("inactiveVisitors").textContent =
-            numberFormat.format(inactiveCount);
-
-          if (visitors.length === 0) {
-            tbody.innerHTML =
-              '<tr><td colspan="2" class="empty">Chưa có người truy cập được ghi nhận</td></tr>';
-            return;
-          }
-
-          tbody.innerHTML = visitors
-            .map((visitor) => {
-              const active = visitor.isActive === true;
-
-              return `
+            return `
                 <tr>
                   <td class="visitor-id">${escapeHtml(visitor.visitorId)}</td>
                   <td class="${active ? "active" : "inactive"}">
-                    ${active ? "TRUE" : "FALSE"}
+                    ${active ? "Online" : "Offline"}
                   </td>
                 </tr>
               `;
-            })
-            .join("");
-        } catch (error) {
-          console.error("Lỗi tải trạng thái người truy cập:", error);
+          })
+          .join("");
+      } catch (error) {
+        console.error("Lỗi tải trạng thái người truy cập:", error);
 
-          document.getElementById("activeVisitors").textContent = "—";
-          document.getElementById("inactiveVisitors").textContent = "—";
+        document.getElementById("activeVisitors").textContent = "—";
+        document.getElementById("inactiveVisitors").textContent = "—";
 
-          tbody.innerHTML =
-            '<tr><td colspan="2" class="empty error">Không tải được trạng thái người truy cập. Kiểm tra API.</td></tr>';
-        }
+        tbody.innerHTML =
+          '<tr><td colspan="2" class="empty error">Không tải được trạng thái người truy cập. Kiểm tra API.</td></tr>';
       }
+    }
 
-      async function loadDashboard() {
-        const status = document.getElementById("status");
-        const button = document.getElementById("refreshButton");
+    async function loadDashboard() {
+      const status = document.getElementById("status");
+      const button = document.getElementById("refreshButton");
 
-        button.disabled = true;
-        status.className = "status";
-        status.textContent = "Đang tải dữ liệu...";
+      button.disabled = true;
+      status.className = "status";
+      status.textContent = "Đang tải dữ liệu...";
 
-        try {
-          const response = await fetch("/api/dashboard/analytics", {
-            cache: "no-store",
-          });
+      try {
+        const response = await fetch("/api/dashboard/analytics", {
+          cache: "no-store",
+        });
 
-          if (!response.ok) {
-            throw new Error("API trả về lỗi HTTP " + response.status);
-          }
-
-          const data = await response.json();
-
-          document.getElementById("totalVisits").textContent =
-            numberFormat.format(data.totalVisits ?? 0);
-
-          document.getElementById("totalListens").textContent =
-            numberFormat.format(data.totalListens ?? 0);
-
-          renderRows("locationRows", data.byLocation, [
-            { key: "locationName" },
-            { key: "totalListens", number: true },
-          ]);
-
-          renderRows("languageRows", data.byLanguage, [
-            { key: "languageCode" },
-            { key: "totalListens", number: true },
-          ]);
-
-          renderRows("detailRows", data.byLocationAndLanguage, [
-            { key: "locationName" },
-            { key: "languageCode" },
-            { key: "totalListens", number: true },
-          ]);
-
-          status.textContent =
-            "Cập nhật thành công lúc " + new Date().toLocaleTimeString("vi-VN");
-        } catch (error) {
-          status.className = "status error";
-          status.textContent =
-            "Không tải được dữ liệu thống kê. Kiểm tra API và cấu hình Supabase.";
-          console.error(error);
-        } finally {
-          button.disabled = false;
+        if (!response.ok) {
+          throw new Error("API trả về lỗi HTTP " + response.status);
         }
 
-        await loadVisitorActivity();
+        const data = await response.json();
+
+        document.getElementById("totalVisits").textContent =
+          numberFormat.format(data.totalVisits ?? 0);
+
+        document.getElementById("totalListens").textContent =
+          numberFormat.format(data.totalListens ?? 0);
+
+        renderRows("locationRows", data.byLocation, [
+          { key: "locationName" },
+          { key: "totalListens", number: true },
+        ]);
+
+        renderRows("languageRows", data.byLanguage, [
+          { key: "languageCode" },
+          { key: "totalListens", number: true },
+        ]);
+
+        renderRows("detailRows", data.byLocationAndLanguage, [
+          { key: "locationName" },
+          { key: "languageCode" },
+          { key: "totalListens", number: true },
+        ]);
+
+        status.textContent =
+          "Cập nhật thành công lúc " + new Date().toLocaleTimeString("vi-VN");
+      } catch (error) {
+        status.className = "status error";
+        status.textContent =
+          "Không tải được dữ liệu thống kê. Kiểm tra API và cấu hình Supabase.";
+        console.error(error);
+      } finally {
+        button.disabled = false;
       }
 
-      document
-        .getElementById("refreshButton")
-        .addEventListener("click", loadDashboard);
+      await loadVisitorActivity();
+    }
 
-      loadDashboard();
+    document
+      .getElementById("refreshButton")
+      .addEventListener("click", loadDashboard);
 
-      // Tự cập nhật trạng thái người truy cập mỗi 20 giây.
-      setInterval(loadVisitorActivity, 2000);
-    </script>
-  </body>
+    loadDashboard();
+
+    // Tự cập nhật trạng thái người truy cập mỗi 20 giây.
+    setInterval(loadVisitorActivity, 2000);
+  </script>
+</body>
+
 </html>

@@ -10,7 +10,6 @@ using ThuyetMinhDaNgonNgu.BLL.Models;
 namespace ThuyetMinhDaNgonNgu.API.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin")]
 [Route("api/admin/narrations")]
 public sealed class AdminNarrationsController(
     IAdminNarrationService service,
@@ -37,7 +36,7 @@ public sealed class AdminNarrationsController(
 
     [HttpPost("draft")]
     [EnableRateLimiting("Narration")]
-    [EndpointSummary("Tạo bản nháp thuyết minh bằng AI.")]
+    [EndpointSummary("Tạo bản thuyết minh.")]
     public async Task<ActionResult<object>> CreateDraft(
         [FromBody] CreateNarrationDraftRequest request,
         CancellationToken cancellationToken)
@@ -67,7 +66,7 @@ public sealed class AdminNarrationsController(
             logger.LogError(exception, "An external provider rejected the admin draft request.");
             return StatusCode(
                 StatusCodes.Status502BadGateway,
-                new { message = "Không thể tạo bản nháp từ dịch vụ AI. Vui lòng thử lại sau." });
+                new { message = "Không thể tạo bản thuyết minh từ dịch vụ AI. Vui lòng thử lại sau." });
         }
     }
 

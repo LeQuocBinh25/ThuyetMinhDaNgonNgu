@@ -10,39 +10,20 @@
 <script src="js/visitor-counter.js"></script>
 
 <body>
-  <header id="adminHeader" hidden><a class="brand" href="admin.html"><span>V</span> VietGuide <small>ADMIN CONSOLE</small></a>
+  <header><a class="brand" href="admin.html"><span>V</span> VietGuide <small>ADMIN CONSOLE</small></a>
     <nav>
-      <button id="dashboardBtn" type="button" class="outline" hidden
+      <button id="dashboardBtn" type="button" class="outline"
         onclick="window.location.href='dashboard.html'">Dashboard</button>
-      <button id="logoutBtn" type="button" class="outline" hidden>Đăng xuất</button>
     </nav>
   </header>
   <main>
-    <section class="intro" id="adminIntro" hidden>
+    <section class="intro">
       <p class="eyebrow">BẢNG ĐIỀU KHIỂN QUẢN TRỊ</p>
       <h1>Quản lý nội dung<br><em>thuyết minh</em></h1>
       <p>Quản lý ngôn ngữ và chỉnh sửa bản thuyết minh.</p>
     </section>
 
-    <section id="loginPanel" class="panel login-panel">
-      <div class="panel-title">
-        <span>🔒</span>
-        <div>
-          <h2>Đăng nhập quản trị</h2>
-          <p>Đăng nhập bằng tài khoản quản trị được cấu hình trên máy chủ.</p>
-        </div>
-      </div>
-      <form id="loginForm">
-        <label for="username">Tên đăng nhập</label>
-        <input id="username" autocomplete="username" required maxlength="100">
-        <label for="password">Mật khẩu</label>
-        <input id="password" type="password" autocomplete="current-password" required maxlength="200">
-        <button type="submit">Đăng nhập <b>↗</b></button>
-      </form>
-      <p class="notice" id="loginMessage" role="status"></p>
-    </section>
-
-    <div class="layout" id="adminContent" hidden>
+    <div class="layout" id="adminContent">
       <section class="panel">
         <div class="panel-title"><span>01</span>
           <div>
@@ -100,14 +81,14 @@
         <div class="panel-title"><span>03</span>
           <div>
             <h2>Cập nhật bản thuyết minh</h2>
-            <p>Tạo bản nháp từ API, chỉnh sửa nội dung và lưu bản đã cập nhật trên máy chủ.</p>
+            <p>Tạo nội dung thuyết minh từ API, chỉnh sửa nội dung và lưu bản đã cập nhật trên máy chủ.</p>
           </div>
         </div>
         <form id="narrationForm"><label for="location">Địa điểm</label><select id="location" required>
             <option value="">Đang tải địa điểm...</option>
           </select><label for="language">Ngôn ngữ</label><select id="language" required>
             <option value="">Đang tải ngôn ngữ...</option>
-          </select><button type="submit" class="secondary">Tạo bản nháp bằng AI <b>↗</b></button></form>
+          </select><button type="submit" class="secondary">Tạo nội dung thuyết minh <b>↗</b></button></form>
         <label for="narrationText" class="textarea-label">Nội dung thuyết minh</label><textarea id="narrationText"
           rows="10" placeholder="Nội dung sẽ hiển thị tại đây sau khi tạo hoặc bạn có thể nhập nội dung..."></textarea>
         <div class="actions"><button id="saveBtn" type="button">Tạo audio và công bố</button><button id="loadBtn"
@@ -126,7 +107,7 @@
         </div>
       </form>
     </dialog>
-    <footer id="adminFooter" hidden>VIETGUIDE · KHU VỰC QUẢN TRỊ <span><a href="dashboard.html">Dashboard</a></span></footer>
+    <footer>VIETGUIDE · KHU VỰC QUẢN TRỊ <span><a href="dashboard.html">Dashboard</a></span></footer>
   </main>
   <script src="js/admin.js"></script>
 </body>
