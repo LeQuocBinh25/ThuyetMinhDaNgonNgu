@@ -45,7 +45,7 @@ public class DashboardController : ControllerBase
                 supabaseUrl,
                 serviceRoleKey,
                 "visitor_tracking",
-                "visitor_id",
+                "visitor_id,visit_count",
                 "order=visitor_id");
 
             var listens = await GetRows<ListenRow>(
@@ -100,7 +100,7 @@ public class DashboardController : ControllerBase
 
             return Ok(new
             {
-                totalVisits = visitors.Count,
+                totalVisits = visitors.Sum(x => x.VisitCount ?? 0L),
                 totalListens = listens.Count,
                 byLocation,
                 byLanguage,
@@ -189,6 +189,9 @@ public class DashboardController : ControllerBase
     {
         [JsonPropertyName("visitor_id")]
         public Guid VisitorId { get; set; }
+
+        [JsonPropertyName("visit_count")]
+        public long? VisitCount { get; set; }
     }
 
     public sealed class ListenRow
