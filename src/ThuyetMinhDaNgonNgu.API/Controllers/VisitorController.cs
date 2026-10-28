@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using ThuyetMinhDaNgonNgu.DAL.Persistence;
 
 namespace ThuyetMinhDaNgonNgu.API.Controllers;
 
@@ -8,21 +8,18 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers;
 [Route("api/visitor")]
 public sealed class VisitorController : ControllerBase
 {
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
+    private readonly AppDbContext _dbContext;
 
-    public VisitorController(
-        IHttpClientFactory httpClientFactory,
-        IConfiguration configuration)
+    public VisitorController(AppDbContext dbContext)
     {
-        _httpClient = httpClientFactory.CreateClient();
-        _configuration = configuration;
+        _dbContext = dbContext;
     }
 
     // Ghi nhận một lượt truy cập: tăng visit_count của đúng visitorId.
     [HttpPost]
     public async Task<IActionResult> Record(
-        [FromBody] VisitorRequest request)
+        [FromBody] VisitorRequest request,
+        CancellationToken cancellationToken)
     {
         if (request == null || request.VisitorId == Guid.Empty)
         {
@@ -32,39 +29,16 @@ public sealed class VisitorController : ControllerBase
             });
         }
 
-        string baseUrl = _configuration["Supabase:Url"]
-            ?? throw new InvalidOperationException(
-                "Chưa cấu hình Supabase:Url.");
-
-        string key = _configuration["Supabase:ServiceRoleKey"]
-            ?? throw new InvalidOperationException(
-                "Chưa cấu hình Supabase:ServiceRoleKey.");
-
-        using var message = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"{baseUrl.TrimEnd('/')}/rest/v1/rpc/record_visit");
-
-        message.Headers.Add("apikey", key);
-        message.Headers.Authorization =
-            new AuthenticationHeaderValue("Bearer", key);
-
-        message.Content = JsonContent.Create(new
-        {
-            p_visitor_id = request.VisitorId
-        });
-
-        using var response = await _httpClient.SendAsync(message);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-
-            return StatusCode(502, new
-            {
-                message = "Không thể lưu lượt truy cập vào Supabase.",
-                detail = error
-            });
-        }
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO public.visitor_tracking
+                (visitor_id, visit_count, last_seen, is_active)
+            VALUES
+                ({request.VisitorId}, 1, {DateTimeOffset.UtcNow}, TRUE)
+            ON CONFLICT (visitor_id) DO UPDATE
+            SET visit_count = COALESCE(visitor_tracking.visit_count, 0) + 1,
+                last_seen = EXCLUDED.last_seen,
+                is_active = TRUE
+            """, cancellationToken);
 
         return Ok(new
         {

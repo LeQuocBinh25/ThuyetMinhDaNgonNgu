@@ -100,7 +100,7 @@ public class DashboardController : ControllerBase
 
             return Ok(new
             {
-                totalVisits = visitors.Sum(x => (long)x.VisitCount),
+                totalVisits = visitors.Sum(x => x.VisitCount ?? 0L),
                 totalListens = listens.Count,
                 byLocation,
                 byLanguage,
@@ -191,7 +191,7 @@ public class DashboardController : ControllerBase
         public Guid VisitorId { get; set; }
 
         [JsonPropertyName("visit_count")]
-        public int VisitCount { get; set; }
+        public long? VisitCount { get; set; }
     }
 
     public sealed class ListenRow

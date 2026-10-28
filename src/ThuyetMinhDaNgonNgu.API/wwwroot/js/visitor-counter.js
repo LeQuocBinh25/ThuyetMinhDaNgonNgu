@@ -3,6 +3,7 @@
   const key = "vietguide_last_visit_time";
   const interval = 10 * 60 * 1000; // 10 phút
   const visitorKey = "vietguide_visitor_id";
+  const initialVisitKey = "vietguide_initial_visit_recorded_for";
   let visitorId = localStorage.getItem(visitorKey);
 
   if (!visitorId) {
@@ -11,8 +12,9 @@
   }
   const now = Date.now();
   const lastVisit = Number(localStorage.getItem(key) || 0);
+  const needsInitialVisit = localStorage.getItem(initialVisitKey) !== visitorId;
 
-  if (now - lastVisit < interval) {
+  if (!needsInitialVisit && now - lastVisit < interval) {
     return;
   }
 
@@ -30,7 +32,10 @@
     if (!response.ok) {
       localStorage.setItem(key, lastVisit.toString());
       console.error("Không thể ghi nhận lượt truy cập:", response.status);
+      return;
     }
+
+    localStorage.setItem(initialVisitKey, visitorId);
   } catch (error) {
     localStorage.setItem(key, lastVisit.toString());
     console.error("Lỗi kết nối API:", error);
