@@ -13,7 +13,6 @@ using System.Text;
 using System.Threading.RateLimiting;
 using System.Security.Cryptography;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();

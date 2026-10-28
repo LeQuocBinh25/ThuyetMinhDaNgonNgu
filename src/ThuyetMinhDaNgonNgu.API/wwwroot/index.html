@@ -28,8 +28,33 @@
       <nav>
         <a class="active" href="#discover">Khám phá</a
         ><a href="#how">Cách hoạt động</a><a href="#about">Giới thiệu</a
-        ><a href="#mapExplore">Bản đồ</a> <a href="#history">Lịch sử</a>
+        ><a href="#mapExplore">Bản đồ</a>
+        
+
+
       </nav>
+      <div class="site-language">
+  <button
+    type="button"
+    id="siteLanguageButton"
+    class="site-language-button"
+    aria-label="Chọn ngôn ngữ giao diện"
+    aria-expanded="false"
+    aria-controls="siteLanguageMenu"
+  >
+    <span aria-hidden="true">🌐</span>
+    <span id="siteLanguageLabel">Tiếng Việt</span>
+    <span aria-hidden="true">▾</span>
+  </button>
+
+  <div id="siteLanguageMenu" class="site-language-menu" hidden>
+    <button type="button" data-site-language="vi">🇻🇳 Tiếng Việt</button>
+    <button type="button" data-site-language="en">🇺🇸 English</button>
+    <button type="button" data-site-language="ja">🇯🇵 日本語</button>
+    <button type="button" data-site-language="ko">🇰🇷 한국어</button>
+    <button type="button" data-site-language="fr">🇫🇷 Français</button>
+  </div>
+</div>
       <a class="nav-cta" href="#create">Xem thuyết minh <span>↗</span></a>
       <button class="menu-toggle" aria-label="Mở menu">☰</button>
     </header>
@@ -112,7 +137,13 @@
 
         <div id="exploreMap"></div>
 
-        <p id="mapMessage">Nhấn vào ghim trên bản đồ để chọn địa điểm.</p>
+        <div class="gps-controls">
+          <button id="findNearbyButton" class="gps-button" type="button">
+            <span aria-hidden="true">⌖</span> Tìm địa điểm gần tôi
+          </button>
+          <p class="gps-help">VietGuide chỉ lấy vị trí khi bạn nhấn nút và cho phép trình duyệt truy cập vị trí.</p>
+        </div>
+        <p id="mapMessage" role="status" aria-live="polite">Nhấn vào ghim trên bản đồ để chọn địa điểm, hoặc dùng GPS để tìm địa điểm gần bạn.</p>
       </section>
       <section class="builder" id="create">
         <div class="builder-inner">
@@ -183,25 +214,6 @@
             ><button id="copyBtn" type="button">Sao chép nội dung ↗</button>
           </div>
         </article>
-      </section>
-      <!-- LỊCH SỬ THUYẾT MINH -->
-      <section class="extra-section" id="history">
-        <div class="history-heading">
-          <div>
-            <p class="section-label">HÀNH TRÌNH CỦA BẠN</p>
-            <h2>Lịch sử <em>thuyết minh</em></h2>
-          </div>
-
-          <button id="clearHistory" type="button">Xóa lịch sử</button>
-        </div>
-
-        <p class="section-description">
-          Xem lại nội dung đã dịch và nghe lại các chuyến khám phá trước đây.
-        </p>
-
-        <div id="historyList">
-          <p>Bạn chưa có lịch sử thuyết minh.</p>
-        </div>
       </section>
       <section class="closing section-wrap" id="how">
         <div class="closing-symbol">✳</div>

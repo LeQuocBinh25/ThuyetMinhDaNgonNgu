@@ -49,6 +49,7 @@ public sealed class LanguagesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(LanguageResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [EndpointSummary("Tạo ngôn ngữ mới.")]

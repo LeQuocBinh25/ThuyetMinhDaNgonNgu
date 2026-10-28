@@ -180,7 +180,6 @@ public class DashboardController : ControllerBase
         return result;
     }
 
-
     public sealed class VisitRow
     {
         [JsonPropertyName("visit_id")]

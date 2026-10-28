@@ -1,7 +1,6 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-
 let locations = [];
 let languages = [];
 let savedNarrations = [];
@@ -12,7 +11,6 @@ function showAdmin() {
 
 async function api(url, options = {}) {
     const headers = new Headers(options.headers || {});
-
     if (options.body && !headers.has("Content-Type")) {
         headers.set("Content-Type", "application/json");
     }
@@ -33,7 +31,6 @@ async function api(url, options = {}) {
             ? data
             : data?.message || data?.detail || data?.title ||
                 `Yêu cầu thất bại (${response.status}).`;
-
         throw new Error(message);
     }
 
