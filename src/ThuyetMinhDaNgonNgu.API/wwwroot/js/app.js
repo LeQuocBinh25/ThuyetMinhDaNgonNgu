@@ -375,8 +375,8 @@ async function initApp() {
   await loadOptions();
 
   // Tự động xin quyền xác định vị trí khi mở trang.
- // Tự động theo dõi GPS và phát thuyết minh khi đến gần.
-startAutomaticNearbyNarration();
+  // Tự động theo dõi GPS và phát thuyết minh khi đến gần.
+  startAutomaticNearbyNarration();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
@@ -805,7 +805,7 @@ async function findNearbyLocation() {
   } catch (error) {
     setMapMessage(
       error.message ||
-        "Không thể xác định vị trí. Bạn vẫn có thể chọn địa điểm thủ công."
+      "Không thể xác định vị trí. Bạn vẫn có thể chọn địa điểm thủ công."
     );
   } finally {
     if (findNearbyButton) {
@@ -1334,11 +1334,21 @@ function refreshVietGuideMap() {
       try {
         const selectedLocation = locations.find((location) => String(getLocationId(location)) === String(locationSelect?.value || ""));
         const selectedLanguage = languageSelect?.value || null;
+
+        // visitorId do visitor-counter.js tạo và lưu trong localStorage.
+        const visitorId = localStorage.getItem("vietguide_visitor_id");
+
+        const parsedLocationId = selectedLocation
+          ? Number(getLocationId(selectedLocation))
+          : NaN;
+
         const response = await fetch("/api/audio-listens", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             listenId: crypto.randomUUID(),
+            visitorId: visitorId || null,
+            locationId: Number.isInteger(parsedLocationId) ? parsedLocationId : null,
             locationName: selectedLocation ? getLocationName(selectedLocation) : (locationSelect?.selectedOptions?.[0]?.textContent?.trim() || null),
             languageCode: selectedLanguage,
           }),
@@ -1357,7 +1367,7 @@ function refreshVietGuideMap() {
 
 
   },
-   250);
+    250);
 })();
 /* ===== DOI NGON NGU GIAO DIEN VIETGUIDE ===== */
 
@@ -1584,11 +1594,11 @@ function setSiteLanguage(language) {
     }
   });
 
-setButtonLabel(".nav-cta", translations.navCta);
+  setButtonLabel(".nav-cta", translations.navCta);
   setText(".eyebrow", translations.eyebrow);
   setHTML(".hero-content h1", translations.heroTitle);
   setText(".hero-content > p", translations.heroDescription);
- setButtonLabel(".hero-link", translations.heroLink);
+  setButtonLabel(".hero-link", translations.heroLink);
   setText(".hero-note", translations.heroNote);
 
   setText(".intro .section-kicker", translations.introKicker);
@@ -1603,7 +1613,7 @@ setButtonLabel(".nav-cta", translations.navCta);
   setText("#mapExplore .section-label", translations.mapKicker);
   setHTML("#mapExplore h2", translations.mapTitle);
   setText("#mapExplore .section-description", translations.mapDescription);
-setButtonLabel("#findNearbyButton", translations.gpsButton);
+  setButtonLabel("#findNearbyButton", translations.gpsButton);
 
   setText(".builder-copy .section-kicker", translations.builderKicker);
   setHTML(".builder-copy h2", translations.builderTitle);
@@ -1614,7 +1624,7 @@ setButtonLabel("#findNearbyButton", translations.gpsButton);
   if (labels[0]) labels[0].textContent = translations.locationLabel;
   if (labels[1]) labels[1].textContent = translations.languageLabel;
 
-setButtonLabel("#submitBtn", translations.submit);
+  setButtonLabel("#submitBtn", translations.submit);
   setText(".result-section .section-kicker", translations.resultKicker);
   setHTML(".result-head h2", translations.resultTitle);
   setText("#copyBtn", translations.copy);

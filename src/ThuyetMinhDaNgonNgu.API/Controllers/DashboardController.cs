@@ -53,7 +53,7 @@ public class DashboardController : ControllerBase
                 supabaseUrl,
                 serviceRoleKey,
                 "audio_listens",
-                "listen_id,location_name,language_code,listened_at");
+                "listen_id,location_name,language_code,listened_at,visitor_id");
 
             var byLocation = listens
                 .GroupBy(x => string.IsNullOrWhiteSpace(x.LocationName)
@@ -104,7 +104,12 @@ public class DashboardController : ControllerBase
                 totalListens = listens.Count,
                 byLocation,
                 byLanguage,
-                byLocationAndLanguage
+                byLocationAndLanguage,
+                uniqueListeners = listens
+                .Where(x => x.VisitorId != null)
+                .Select(x => x.VisitorId)
+                .Distinct()
+                .Count(),
             });
         }
         catch (HttpRequestException)
@@ -202,5 +207,8 @@ public class DashboardController : ControllerBase
 
         [JsonPropertyName("listened_at")]
         public DateTimeOffset ListenedAt { get; set; }
+
+        [JsonPropertyName("visitor_id")]
+        public Guid? VisitorId { get; set; }
     }
 }

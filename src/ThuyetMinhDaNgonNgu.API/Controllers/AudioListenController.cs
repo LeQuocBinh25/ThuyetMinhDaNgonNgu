@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -24,7 +23,7 @@ public class AudioListenController : ControllerBase
     public async Task<IActionResult> RecordListen(
         [FromBody] AudioListenRequest request)
     {
-        if (request.ListenId == Guid.Empty)
+        if (request == null || request.ListenId == Guid.Empty)
         {
             return BadRequest(new { message = "listenId không hợp lệ." });
         }
@@ -42,35 +41,71 @@ public class AudioListenController : ControllerBase
         }
 
         var client = _httpClientFactory.CreateClient();
+        var baseUrl = supabaseUrl.TrimEnd('/');
 
-        using var httpRequest = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"{supabaseUrl.TrimEnd('/')}/rest/v1/audio_listens?on_conflict=listen_id");
+        // Chuẩn hóa: Guid.Empty hoặc null đều coi là không có visitor.
+        Guid? visitorId =
+            request.VisitorId is { } v && v != Guid.Empty ? v : null;
 
-        httpRequest.Headers.Add("apikey", serviceRoleKey);
-        httpRequest.Headers.Authorization =
-            new AuthenticationHeaderValue("Bearer", serviceRoleKey);
-
-        httpRequest.Headers.Add(
-            "Prefer",
-            "resolution=ignore-duplicates,return=minimal");
-
-        httpRequest.Content = JsonContent.Create(new
-        {
-            listen_id = request.ListenId,
-            location_name = request.LocationName,
-            language_code = request.LanguageCode
-        });
+        // Chuẩn hóa: id địa điểm phải là số dương.
+        int? locationId =
+            request.LocationId is { } l && l > 0 ? l : null;
 
         try
         {
+            // Bảo đảm dòng visitor_tracking tồn tại để không vi phạm khóa ngoại.
+            if (visitorId != null)
+            {
+                using var ensureRequest = CreateRequest(
+                    HttpMethod.Post,
+                    $"{baseUrl}/rest/v1/rpc/track_heartbeat",
+                    serviceRoleKey);
+
+                ensureRequest.Content = JsonContent.Create(new
+                {
+                    p_visitor_id = visitorId.Value
+                });
+
+                using var ensureResponse =
+                    await client.SendAsync(ensureRequest);
+
+                if (!ensureResponse.IsSuccessStatusCode)
+                {
+                    return StatusCode(502, new
+                    {
+                        message = "Không thể xác nhận người truy cập."
+                    });
+                }
+            }
+
+            using var httpRequest = CreateRequest(
+                HttpMethod.Post,
+                $"{baseUrl}/rest/v1/audio_listens?on_conflict=listen_id",
+                serviceRoleKey);
+
+            httpRequest.Headers.Add(
+                "Prefer",
+                "resolution=ignore-duplicates,return=minimal");
+
+            httpRequest.Content = JsonContent.Create(new
+            {
+                listen_id = request.ListenId,
+                visitor_id = visitorId,
+                location_id = locationId,
+                location_name = request.LocationName,
+                language_code = request.LanguageCode
+            });
+
             using var response = await client.SendAsync(httpRequest);
 
             if (!response.IsSuccessStatusCode)
             {
+                var error = await response.Content.ReadAsStringAsync();
+
                 return StatusCode(502, new
                 {
-                    message = "Không thể lưu lượt nghe."
+                    message = "Không thể lưu lượt nghe.",
+                    detail = error
                 });
             }
 
@@ -84,9 +119,25 @@ public class AudioListenController : ControllerBase
             });
         }
     }
+
+    private static HttpRequestMessage CreateRequest(
+        HttpMethod method,
+        string url,
+        string serviceRoleKey)
+    {
+        var request = new HttpRequestMessage(method, url);
+
+        request.Headers.Add("apikey", serviceRoleKey);
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue("Bearer", serviceRoleKey);
+
+        return request;
+    }
 }
 
 public record AudioListenRequest(
     Guid ListenId,
+    Guid? VisitorId,
+    int? LocationId,
     string? LocationName,
     string? LanguageCode);
