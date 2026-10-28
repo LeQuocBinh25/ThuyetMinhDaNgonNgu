@@ -1105,11 +1105,13 @@ async function findNearbyLocation() {
         : `${(nearest.distance / 1000).toFixed(2)} km`;
 
     if (nearest.distance <= NEARBY_RADIUS_METERS) {
+      currentNearbyLocation = nearest.location;
       selectVietGuideLocation(nearest.location);
 
       setMapMessage(
         `Bạn đang cách ${getLocationName(nearest.location)} khoảng ${distanceText}, trong phạm vi ${NEARBY_RADIUS_METERS} m.`
       );
+      await autoPlayNearbyNarration(nearest.location, { force: true });
     } else {
       setMapMessage(
         `Địa điểm gần nhất là ${getLocationName(nearest.location)}, cách bạn khoảng ${distanceText}; ngoài phạm vi ${NEARBY_RADIUS_METERS} m. Bạn có thể chọn địa điểm gần nhất trên bản đồ hoặc trong danh sách.`
