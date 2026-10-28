@@ -12,7 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Threading.RateLimiting;
 using System.Security.Cryptography;
-using ThuyetMinhDaNgonNgu.API.Extensions;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,10 +20,6 @@ builder.Services.AddControllers();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
-
-
-var username = builder.Configuration["AdminAuth:Username"];
-var password = builder.Configuration["AdminAuth:Password"];
 
 // Supabase
 var connectionString =
@@ -57,11 +53,6 @@ builder.Services.AddScoped<ILocationService, LocationService>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
 builder.Services.AddScoped<INarrationService, NarrationService>();
 builder.Services.AddScoped<IAdminNarrationService, AdminNarrationService>();
-
-// Module mở rộng tránh conflict khi nhiều thành viên cùng phát triển
-builder.Services.AddAnalyticsModule(builder.Configuration);
-builder.Services.AddManagementModule(builder.Configuration);
-
 
 builder.Services.AddHttpClient<IAiNarrationProvider, AIProvider>(client =>
 {
