@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Http.Headers;
 using System.Text;
@@ -10,6 +9,9 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
     [Route("api/visitor-activity")]
     public class VisitorActivityController : ControllerBase
     {
+        // Quá ngưỡng này không có heartbeat thì coi như đã rời đi.
+        private const int ActiveWindowSeconds = 30;
+
         private readonly HttpClient _http;
         private readonly IConfiguration _config;
 
@@ -53,7 +55,20 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
             return request;
         }
 
-        // Ghi nhận người truy cập đang hoạt động.
+        private async Task<IActionResult> Fail(
+            HttpResponseMessage response,
+            string message)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+
+            return StatusCode(502, new
+            {
+                message,
+                detail = error
+            });
+        }
+
+        // Heartbeat: cập nhật đúng dòng của visitorId, chưa có thì tạo mới.
         [HttpPost("heartbeat")]
         public async Task<IActionResult> Heartbeat(
             [FromBody] HeartbeatRequest data)
@@ -63,21 +78,16 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                 return BadRequest("visitorId không hợp lệ.");
             }
 
-            var id = data.VisitorId.ToString();
-            var trackingKey = $"session:{id}";
-
             var json = JsonSerializer.Serialize(new
             {
-                tracking_key = trackingKey,
-                record_type = "session",
-                visitor_id = id,
+                visitor_id = data.VisitorId,
                 last_seen = DateTimeOffset.UtcNow,
                 is_active = true
             });
 
             using var request = CreateRequest(
                 HttpMethod.Post,
-                "visitor_tracking?on_conflict=tracking_key",
+                "visitor_tracking?on_conflict=visitor_id",
                 json);
 
             request.Headers.TryAddWithoutValidation(
@@ -88,19 +98,15 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
-
-                return StatusCode(502, new
-                {
-                    message = "Không cập nhật được visitor_tracking.",
-                    detail = error
-                });
+                return await Fail(
+                    response,
+                    "Không cập nhật được visitor_tracking.");
             }
 
             return Ok(new { success = true });
         }
 
-        // Ghi nhận người truy cập rời trang.
+        // Rời trang: đặt is_active = false cho đúng visitorId.
         [HttpPost("leave")]
         public async Task<IActionResult> Leave(
             [FromBody] HeartbeatRequest data)
@@ -110,18 +116,14 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                 return BadRequest("visitorId không hợp lệ.");
             }
 
-            var id = data.VisitorId.ToString();
-            var trackingKey = Uri.EscapeDataString($"session:{id}");
-
             var json = JsonSerializer.Serialize(new
             {
-                last_seen = DateTimeOffset.UtcNow.AddSeconds(-31),
                 is_active = false
             });
 
             using var request = CreateRequest(
                 HttpMethod.Patch,
-                $"visitor_tracking?tracking_key=eq.{trackingKey}",
+                $"visitor_tracking?visitor_id=eq.{data.VisitorId}",
                 json);
 
             request.Headers.TryAddWithoutValidation(
@@ -132,105 +134,83 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
-
-                return StatusCode(502, new
-                {
-                    message = "Không cập nhật được trạng thái.",
-                    detail = error
-                });
+                return await Fail(
+                    response,
+                    "Không cập nhật được trạng thái.");
             }
 
             return Ok(new { success = true });
         }
 
-        // Lấy danh sách người truy cập cho dashboard.
+        // Dashboard: tắt các visitor quá hạn heartbeat, rồi trả danh sách.
         [HttpGet("visitors")]
         public async Task<IActionResult> GetVisitors()
         {
+            // Chỉ chiều true -> false cần xử lý ở đây;
+            // chiều false -> true do heartbeat đảm nhiệm.
+            var cutoff = Uri.EscapeDataString(
+                DateTimeOffset.UtcNow
+                    .AddSeconds(-ActiveWindowSeconds)
+                    .ToString("o"));
+
+            var expireJson = JsonSerializer.Serialize(new
+            {
+                is_active = false
+            });
+
+            using (var expireRequest = CreateRequest(
+                HttpMethod.Patch,
+                $"visitor_tracking?is_active=eq.true&last_seen=lt.{cutoff}",
+                expireJson))
+            {
+                expireRequest.Headers.TryAddWithoutValidation(
+                    "Prefer",
+                    "return=minimal");
+
+                using var expireResponse =
+                    await _http.SendAsync(expireRequest);
+
+                if (!expireResponse.IsSuccessStatusCode)
+                {
+                    return await Fail(
+                        expireResponse,
+                        "Không cập nhật được trạng thái.");
+                }
+            }
+
             using var request = CreateRequest(
                 HttpMethod.Get,
-                "visitor_tracking?record_type=eq.session" +
-                "&select=tracking_key,visitor_id,is_active,last_seen" +
+                "visitor_tracking?select=visitor_id,is_active" +
                 "&order=visitor_id");
 
             using var response = await _http.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
-
-                return StatusCode(502, new
-                {
-                    message = "Không đọc được visitor_tracking.",
-                    detail = error
-                });
+                return await Fail(
+                    response,
+                    "Không đọc được visitor_tracking.");
             }
 
             var json = await response.Content.ReadAsStringAsync();
 
             using var document = JsonDocument.Parse(json);
 
-            var now = DateTimeOffset.UtcNow;
             var result = new List<object>();
 
             foreach (var item in document.RootElement.EnumerateArray())
             {
                 var id = item.GetProperty("visitor_id").GetString();
-                var key = item.GetProperty("tracking_key").GetString();
-                var timeText = item.GetProperty("last_seen").GetString();
 
-                if (id == null || key == null ||
-                    !DateTimeOffset.TryParse(timeText, out var lastSeen))
+                if (id == null)
                 {
                     continue;
-                }
-
-                // Giữ nguyên ngưỡng 30 giây.
-                var active = now - lastSeen <=
-                    TimeSpan.FromSeconds(30);
-
-                var oldActive =
-                    item.GetProperty("is_active").GetBoolean();
-
-                // Đồng bộ trạng thái vào database nếu cần.
-                if (active != oldActive)
-                {
-                    var patchJson = JsonSerializer.Serialize(new
-                    {
-                        is_active = active
-                    });
-
-                    using var patchRequest = CreateRequest(
-                        HttpMethod.Patch,
-                        $"visitor_tracking?tracking_key=eq." +
-                        Uri.EscapeDataString(key),
-                        patchJson);
-
-                    patchRequest.Headers.TryAddWithoutValidation(
-                        "Prefer",
-                        "return=minimal");
-
-                    using var patchResponse =
-                        await _http.SendAsync(patchRequest);
-
-                    if (!patchResponse.IsSuccessStatusCode)
-                    {
-                        var error =
-                            await patchResponse.Content.ReadAsStringAsync();
-
-                        return StatusCode(502, new
-                        {
-                            message = "Không cập nhật được trạng thái.",
-                            detail = error
-                        });
-                    }
                 }
 
                 result.Add(new
                 {
                     visitorId = id,
-                    isActive = active
+                    isActive = item.GetProperty("is_active").GetBoolean()
                 });
             }
 

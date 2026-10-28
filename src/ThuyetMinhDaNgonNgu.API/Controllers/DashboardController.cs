@@ -40,13 +40,13 @@ public class DashboardController : ControllerBase
         {
             var client = _httpClientFactory.CreateClient();
 
-            var visits = await GetRows<VisitRow>(
+            var visitors = await GetRows<VisitorRow>(
                 client,
                 supabaseUrl,
                 serviceRoleKey,
                 "visitor_tracking",
-                "visit_id",
-                "record_type=eq.visit");
+                "visitor_id,visit_count",
+                "order=visitor_id");
 
             var listens = await GetRows<ListenRow>(
                 client,
@@ -100,7 +100,7 @@ public class DashboardController : ControllerBase
 
             return Ok(new
             {
-                totalVisits = visits.Count,
+                totalVisits = visitors.Sum(x => (long)x.VisitCount),
                 totalListens = listens.Count,
                 byLocation,
                 byLanguage,
@@ -180,10 +180,13 @@ public class DashboardController : ControllerBase
         return result;
     }
 
-    public sealed class VisitRow
+    public sealed class VisitorRow
     {
-        [JsonPropertyName("visit_id")]
-        public Guid VisitId { get; set; }
+        [JsonPropertyName("visitor_id")]
+        public Guid VisitorId { get; set; }
+
+        [JsonPropertyName("visit_count")]
+        public int VisitCount { get; set; }
     }
 
     public sealed class ListenRow

@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -20,16 +19,16 @@ public sealed class VisitorController : ControllerBase
         _configuration = configuration;
     }
 
+    // Ghi nhận một lượt truy cập: tăng visit_count của đúng visitorId.
     [HttpPost]
     public async Task<IActionResult> Record(
         [FromBody] VisitorRequest request)
     {
-        if (request.VisitId == Guid.Empty ||
-            request.VisitorId == Guid.Empty)
+        if (request == null || request.VisitorId == Guid.Empty)
         {
             return BadRequest(new
             {
-                message = "visitId hoặc visitorId không hợp lệ."
+                message = "visitorId không hợp lệ."
             });
         }
 
@@ -41,27 +40,17 @@ public sealed class VisitorController : ControllerBase
             ?? throw new InvalidOperationException(
                 "Chưa cấu hình Supabase:ServiceRoleKey.");
 
-        string trackingKey = $"visit:{request.VisitId}";
-
         using var message = new HttpRequestMessage(
             HttpMethod.Post,
-            $"{baseUrl.TrimEnd('/')}/rest/v1/visitor_tracking?on_conflict=tracking_key");
+            $"{baseUrl.TrimEnd('/')}/rest/v1/rpc/record_visit");
 
         message.Headers.Add("apikey", key);
         message.Headers.Authorization =
             new AuthenticationHeaderValue("Bearer", key);
 
-        message.Headers.Add(
-            "Prefer",
-            "resolution=ignore-duplicates,return=minimal");
-
         message.Content = JsonContent.Create(new
         {
-            tracking_key = trackingKey,
-            record_type = "visit",
-            visitor_id = request.VisitorId,
-            visit_id = request.VisitId,
-            visited_at = DateTimeOffset.UtcNow
+            p_visitor_id = request.VisitorId
         });
 
         using var response = await _httpClient.SendAsync(message);
@@ -83,7 +72,5 @@ public sealed class VisitorController : ControllerBase
         });
     }
 
-    public sealed record VisitorRequest(
-        Guid VisitId,
-        Guid VisitorId);
+    public sealed record VisitorRequest(Guid VisitorId);
 }

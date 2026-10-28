@@ -24,10 +24,7 @@
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        visitId: crypto.randomUUID(),
-        visitorId: visitorId,
-      }),
+      body: JSON.stringify({ visitorId }),
     });
 
     if (!response.ok) {
