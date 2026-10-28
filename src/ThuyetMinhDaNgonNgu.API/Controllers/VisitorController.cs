@@ -1,6 +1,5 @@
 
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
@@ -25,40 +24,66 @@ public sealed class VisitorController : ControllerBase
     public async Task<IActionResult> Record(
         [FromBody] VisitorRequest request)
     {
-        if (request.VisitId == Guid.Empty)
-            return BadRequest(new { message = "VisitId không hợp lệ." });
+        if (request.VisitId == Guid.Empty ||
+            request.VisitorId == Guid.Empty)
+        {
+            return BadRequest(new
+            {
+                message = "visitId hoặc visitorId không hợp lệ."
+            });
+        }
 
         string baseUrl = _configuration["Supabase:Url"]
-            ?? throw new InvalidOperationException("Chưa cấu hình Supabase:Url.");
+            ?? throw new InvalidOperationException(
+                "Chưa cấu hình Supabase:Url.");
 
         string key = _configuration["Supabase:ServiceRoleKey"]
-            ?? throw new InvalidOperationException("Chưa cấu hình Supabase:ServiceRoleKey.");
+            ?? throw new InvalidOperationException(
+                "Chưa cấu hình Supabase:ServiceRoleKey.");
+
+        string trackingKey = $"visit:{request.VisitId}";
 
         using var message = new HttpRequestMessage(
             HttpMethod.Post,
-            $"{baseUrl.TrimEnd('/')}/rest/v1/website_visits?on_conflict=visit_id");
+            $"{baseUrl.TrimEnd('/')}/rest/v1/visitor_tracking?on_conflict=tracking_key");
 
         message.Headers.Add("apikey", key);
         message.Headers.Authorization =
             new AuthenticationHeaderValue("Bearer", key);
-        message.Headers.Add("Prefer", "resolution=ignore-duplicates,return=minimal");
+
+        message.Headers.Add(
+            "Prefer",
+            "resolution=ignore-duplicates,return=minimal");
+
         message.Content = JsonContent.Create(new
         {
-            visit_id = request.VisitId
+            tracking_key = trackingKey,
+            record_type = "visit",
+            visitor_id = request.VisitorId,
+            visit_id = request.VisitId,
+            visited_at = DateTimeOffset.UtcNow
         });
 
         using var response = await _httpClient.SendAsync(message);
 
         if (!response.IsSuccessStatusCode)
         {
+            var error = await response.Content.ReadAsStringAsync();
+
             return StatusCode(502, new
             {
-                message = "Không thể lưu lượt truy cập vào Supabase."
+                message = "Không thể lưu lượt truy cập vào Supabase.",
+                detail = error
             });
         }
 
-        return Ok(new { message = "Đã ghi nhận lượt truy cập." });
+        return Ok(new
+        {
+            message = "Đã ghi nhận lượt truy cập."
+        });
     }
 
-    public sealed record VisitorRequest(Guid VisitId);
+    public sealed record VisitorRequest(
+        Guid VisitId,
+        Guid VisitorId);
 }

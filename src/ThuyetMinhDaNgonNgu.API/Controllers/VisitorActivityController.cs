@@ -1,3 +1,4 @@
+
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Http.Headers;
 using System.Text;
@@ -25,12 +26,17 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
             string path,
             string? body = null)
         {
-            var url = _config["Supabase:Url"]!.TrimEnd('/');
-            var key = _config["Supabase:ServiceRoleKey"]!;
+            var url = _config["Supabase:Url"]
+                ?? throw new InvalidOperationException(
+                    "Chưa cấu hình Supabase:Url.");
+
+            var key = _config["Supabase:ServiceRoleKey"]
+                ?? throw new InvalidOperationException(
+                    "Chưa cấu hình Supabase:ServiceRoleKey.");
 
             var request = new HttpRequestMessage(
                 method,
-                $"{url}/rest/v1/{path}");
+                $"{url.TrimEnd('/')}/rest/v1/{path}");
 
             request.Headers.Add("apikey", key);
             request.Headers.Authorization =
@@ -58,55 +64,37 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
             }
 
             var id = data.VisitorId.ToString();
+            var trackingKey = $"session:{id}";
 
-            var sessionJson = JsonSerializer.Serialize(new
+            var json = JsonSerializer.Serialize(new
             {
+                tracking_key = trackingKey,
+                record_type = "session",
                 visitor_id = id,
+                last_seen = DateTimeOffset.UtcNow,
                 is_active = true
             });
 
-            using var sessionRequest = CreateRequest(
+            using var request = CreateRequest(
                 HttpMethod.Post,
-                "visitor_sessions?on_conflict=visitor_id",
-                sessionJson);
+                "visitor_tracking?on_conflict=tracking_key",
+                json);
 
-            sessionRequest.Headers.TryAddWithoutValidation(
+            request.Headers.TryAddWithoutValidation(
                 "Prefer",
                 "resolution=merge-duplicates,return=minimal");
 
-            using var sessionResponse =
-                await _http.SendAsync(sessionRequest);
+            using var response = await _http.SendAsync(request);
 
-            if (!sessionResponse.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                return StatusCode(
-                    502,
-                    "Không cập nhật được visitor_sessions.");
-            }
+                var error = await response.Content.ReadAsStringAsync();
 
-            var heartbeatJson = JsonSerializer.Serialize(new
-            {
-                visitor_id = id,
-                last_seen = DateTimeOffset.UtcNow
-            });
-
-            using var heartbeatRequest = CreateRequest(
-                HttpMethod.Post,
-                "visitor_heartbeats?on_conflict=visitor_id",
-                heartbeatJson);
-
-            heartbeatRequest.Headers.TryAddWithoutValidation(
-                "Prefer",
-                "resolution=merge-duplicates,return=minimal");
-
-            using var heartbeatResponse =
-                await _http.SendAsync(heartbeatRequest);
-
-            if (!heartbeatResponse.IsSuccessStatusCode)
-            {
-                return StatusCode(
-                    502,
-                    "Không cập nhật được visitor_heartbeats.");
+                return StatusCode(502, new
+                {
+                    message = "Không cập nhật được visitor_tracking.",
+                    detail = error
+                });
             }
 
             return Ok(new { success = true });
@@ -123,42 +111,18 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
             }
 
             var id = data.VisitorId.ToString();
+            var trackingKey = Uri.EscapeDataString($"session:{id}");
 
-            // Làm heartbeat cũ hết hạn để không bị tính lại TRUE.
-            var oldHeartbeatJson = JsonSerializer.Serialize(new
+            var json = JsonSerializer.Serialize(new
             {
-                last_seen = DateTimeOffset.UtcNow.AddSeconds(-31)
-            });
-
-            using var heartbeatRequest = CreateRequest(
-                HttpMethod.Patch,
-                $"visitor_heartbeats?visitor_id=eq.{Uri.EscapeDataString(id)}",
-                oldHeartbeatJson);
-
-            heartbeatRequest.Headers.TryAddWithoutValidation(
-                "Prefer",
-                "return=minimal");
-
-            using var heartbeatResponse =
-                await _http.SendAsync(heartbeatRequest);
-
-            if (!heartbeatResponse.IsSuccessStatusCode)
-            {
-                return StatusCode(
-                    502,
-                    "Không cập nhật được thời gian heartbeat.");
-            }
-
-            // Chuyển trạng thái thành FALSE.
-            var patchJson = JsonSerializer.Serialize(new
-            {
+                last_seen = DateTimeOffset.UtcNow.AddSeconds(-31),
                 is_active = false
             });
 
             using var request = CreateRequest(
                 HttpMethod.Patch,
-                $"visitor_sessions?visitor_id=eq.{Uri.EscapeDataString(id)}",
-                patchJson);
+                $"visitor_tracking?tracking_key=eq.{trackingKey}",
+                json);
 
             request.Headers.TryAddWithoutValidation(
                 "Prefer",
@@ -168,9 +132,13 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
 
             if (!response.IsSuccessStatusCode)
             {
-                return StatusCode(
-                    502,
-                    "Không cập nhật được trạng thái.");
+                var error = await response.Content.ReadAsStringAsync();
+
+                return StatusCode(502, new
+                {
+                    message = "Không cập nhật được trạng thái.",
+                    detail = error
+                });
             }
 
             return Ok(new { success = true });
@@ -180,76 +148,52 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
         [HttpGet("visitors")]
         public async Task<IActionResult> GetVisitors()
         {
-            using var sessionsRequest = CreateRequest(
+            using var request = CreateRequest(
                 HttpMethod.Get,
-                "visitor_sessions?select=visitor_id,is_active&order=visitor_id");
+                "visitor_tracking?record_type=eq.session" +
+                "&select=tracking_key,visitor_id,is_active,last_seen" +
+                "&order=visitor_id");
 
-            using var sessionsResponse =
-                await _http.SendAsync(sessionsRequest);
+            using var response = await _http.SendAsync(request);
 
-            if (!sessionsResponse.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                return StatusCode(
-                    502,
-                    "Không đọc được visitor_sessions.");
-            }
+                var error = await response.Content.ReadAsStringAsync();
 
-            var sessionsJson =
-                await sessionsResponse.Content.ReadAsStringAsync();
-
-            using var heartbeatsRequest = CreateRequest(
-                HttpMethod.Get,
-                "visitor_heartbeats?select=visitor_id,last_seen");
-
-            using var heartbeatsResponse =
-                await _http.SendAsync(heartbeatsRequest);
-
-            if (!heartbeatsResponse.IsSuccessStatusCode)
-            {
-                return StatusCode(
-                    502,
-                    "Không đọc được visitor_heartbeats.");
-            }
-
-            var heartbeatsJson =
-                await heartbeatsResponse.Content.ReadAsStringAsync();
-
-            using var sessionsDoc = JsonDocument.Parse(sessionsJson);
-            using var heartbeatsDoc = JsonDocument.Parse(heartbeatsJson);
-
-            var latest = new Dictionary<string, DateTimeOffset>();
-
-            foreach (var item in heartbeatsDoc.RootElement.EnumerateArray())
-            {
-                var id = item.GetProperty("visitor_id").GetString();
-                var timeText = item.GetProperty("last_seen").GetString();
-
-                if (id != null &&
-                    DateTimeOffset.TryParse(timeText, out var time))
+                return StatusCode(502, new
                 {
-                    latest[id] = time;
-                }
+                    message = "Không đọc được visitor_tracking.",
+                    detail = error
+                });
             }
+
+            var json = await response.Content.ReadAsStringAsync();
+
+            using var document = JsonDocument.Parse(json);
 
             var now = DateTimeOffset.UtcNow;
             var result = new List<object>();
 
-            foreach (var item in sessionsDoc.RootElement.EnumerateArray())
+            foreach (var item in document.RootElement.EnumerateArray())
             {
                 var id = item.GetProperty("visitor_id").GetString();
+                var key = item.GetProperty("tracking_key").GetString();
+                var timeText = item.GetProperty("last_seen").GetString();
 
-                if (id == null)
+                if (id == null || key == null ||
+                    !DateTimeOffset.TryParse(timeText, out var lastSeen))
                 {
                     continue;
                 }
 
-                // TRUE nếu heartbeat trong 30 giây gần nhất.
-                var active = latest.TryGetValue(id, out var lastSeen)
-                    && now - lastSeen <= TimeSpan.FromSeconds(30);
+                // Giữ nguyên ngưỡng 30 giây.
+                var active = now - lastSeen <=
+                    TimeSpan.FromSeconds(30);
 
                 var oldActive =
                     item.GetProperty("is_active").GetBoolean();
 
+                // Đồng bộ trạng thái vào database nếu cần.
                 if (active != oldActive)
                 {
                     var patchJson = JsonSerializer.Serialize(new
@@ -259,7 +203,8 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
 
                     using var patchRequest = CreateRequest(
                         HttpMethod.Patch,
-                        $"visitor_sessions?visitor_id=eq.{Uri.EscapeDataString(id)}",
+                        $"visitor_tracking?tracking_key=eq." +
+                        Uri.EscapeDataString(key),
                         patchJson);
 
                     patchRequest.Headers.TryAddWithoutValidation(
@@ -271,9 +216,14 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
 
                     if (!patchResponse.IsSuccessStatusCode)
                     {
-                        return StatusCode(
-                            502,
-                            "Không cập nhật được is_active trong Supabase.");
+                        var error =
+                            await patchResponse.Content.ReadAsStringAsync();
+
+                        return StatusCode(502, new
+                        {
+                            message = "Không cập nhật được trạng thái.",
+                            detail = error
+                        });
                     }
                 }
 

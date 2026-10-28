@@ -44,8 +44,9 @@ public class DashboardController : ControllerBase
                 client,
                 supabaseUrl,
                 serviceRoleKey,
-                "website_visits",
-                "visit_id");
+                "visitor_tracking",
+                "visit_id",
+                "record_type=eq.visit");
 
             var listens = await GetRows<ListenRow>(
                 client,
@@ -127,7 +128,8 @@ public class DashboardController : ControllerBase
         string supabaseUrl,
         string serviceRoleKey,
         string table,
-        string columns)
+        string columns,
+        string? filter = null)
     {
         var result = new List<T>();
         const int pageSize = 1000;
@@ -135,32 +137,49 @@ public class DashboardController : ControllerBase
 
         while (true)
         {
+            var query =
+                $"{supabaseUrl.TrimEnd('/')}/rest/v1/{table}" +
+                $"?select={columns}";
+
+            if (!string.IsNullOrWhiteSpace(filter))
+            {
+                query += $"&{filter}";
+            }
+
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"{supabaseUrl.TrimEnd('/')}/rest/v1/{table}?select={columns}");
+                query);
 
             request.Headers.Add("apikey", serviceRoleKey);
             request.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", serviceRoleKey);
+                new AuthenticationHeaderValue(
+                    "Bearer",
+                    serviceRoleKey);
+
             request.Headers.Range = new RangeHeaderValue(
-                offset, offset + pageSize - 1);
+                offset,
+                offset + pageSize - 1);
 
             using var response = await client.SendAsync(request);
             response.EnsureSuccessStatusCode();
 
-            var rows = await response.Content.ReadFromJsonAsync<List<T>>()
-                       ?? new List<T>();
+            var rows =
+                await response.Content.ReadFromJsonAsync<List<T>>()
+                ?? new List<T>();
 
             result.AddRange(rows);
 
             if (rows.Count < pageSize)
+            {
                 break;
+            }
 
             offset += pageSize;
         }
 
         return result;
     }
+
 
     public sealed class VisitRow
     {

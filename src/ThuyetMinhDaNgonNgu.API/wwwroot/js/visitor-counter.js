@@ -2,7 +2,13 @@
 (async function () {
   const key = "vietguide_last_visit_time";
   const interval = 10 * 60 * 1000; // 10 phút
+  const visitorKey = "vietguide_visitor_id";
+  let visitorId = localStorage.getItem(visitorKey);
 
+  if (!visitorId) {
+    visitorId = crypto.randomUUID();
+    localStorage.setItem(visitorKey, visitorId);
+  }
   const now = Date.now();
   const lastVisit = Number(localStorage.getItem(key) || 0);
 
@@ -20,6 +26,7 @@
       },
       body: JSON.stringify({
         visitId: crypto.randomUUID(),
+        visitorId: visitorId,
       }),
     });
 
