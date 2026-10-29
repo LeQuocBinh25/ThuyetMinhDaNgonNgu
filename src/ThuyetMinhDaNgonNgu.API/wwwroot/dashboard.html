@@ -172,6 +172,43 @@
         grid-template-columns: 1fr;
       }
     }
+    /* Thu nhỏ khu vực trạng thái người truy cập */
+#visitorRows {
+    font-size: 12px;
+}
+
+#visitorRows td {
+    padding: 7px 10px;
+}
+
+#visitorRows .visitor-id {
+    font-size: 11px;
+}
+
+/* Thu gọn panel trạng thái truy cập */
+section.panel:has(#visitorRows) {
+    padding: 16px;
+    max-width: 650px;
+}
+
+section.panel:has(#visitorRows) h2 {
+    font-size: 17px;
+    margin-bottom: 10px;
+}
+
+/* Thu nhỏ tiêu đề bảng */
+section.panel:has(#visitorRows) th {
+    padding: 8px 10px;
+    font-size: 11px;
+}
+
+section.panel:has(#visitorRows) table {
+    min-width: 0;
+}
+
+
+
+
   </style>
 </head>
 
@@ -210,7 +247,20 @@
         <div class="number" id="inactiveVisitors">—</div>
       </div>
     </section>
-
+ <section class="panel">
+      <h2>Lượt nghe theo bài / địa điểm</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Địa điểm</th>
+              <th>Tổng lượt nghe</th>
+            </tr>
+          </thead>
+          <tbody id="locationRows"></tbody>
+        </table>
+      </div>
+    </section>
     <section class="panel">
       <h2>Trạng thái người truy cập</h2>
       <!-- <p class="subtitle">
@@ -235,20 +285,7 @@
       </div>
     </section>
 
-    <section class="panel">
-      <h2>Lượt nghe theo bài / địa điểm</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Địa điểm</th>
-              <th>Tổng lượt nghe</th>
-            </tr>
-          </thead>
-          <tbody id="locationRows"></tbody>
-        </table>
-      </div>
-    </section>
+   
 
     <section class="panel">
       <h2>Lượt nghe theo ngôn ngữ</h2>
