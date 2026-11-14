@@ -15,6 +15,7 @@ public interface ILocationService
         string description,
         double? latitude,
         double? longitude,
+        int narrationRadiusMeters = 50,
         CancellationToken cancellationToken = default);
 
     Task<TouristLocation?> UpdateAsync(
@@ -24,6 +25,7 @@ public interface ILocationService
         string description,
         double? latitude,
         double? longitude,
+        int narrationRadiusMeters = 50,
         CancellationToken cancellationToken = default);
 
     Task<ResourceDeleteResult> DeleteAsync(int id, CancellationToken cancellationToken = default);

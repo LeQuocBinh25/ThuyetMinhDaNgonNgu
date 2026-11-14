@@ -11,10 +11,6 @@ const languageSelect = document.getElementById("languageSelect");
 const locationPreview = document.getElementById("locationPreview");
 const narrationForm = document.getElementById("narrationForm");
 const submitBtn = document.getElementById("submitBtn");
-if (submitBtn) {
-  submitBtn.hidden = true;
-  submitBtn.style.display = "none";
-}
 const errorMessage = document.getElementById("errorMessage");
 const resultSection = document.getElementById("resultSection");
 
@@ -27,16 +23,34 @@ const audioPlayer = document.getElementById("audioPlayer");
 const exploreMap = document.getElementById("exploreMap");
 const mapMessage = document.getElementById("mapMessage");
 const findNearbyButton = document.getElementById("findNearbyButton");
+const startJourneyButton = document.getElementById("startJourneyButton");
+const placesList = document.getElementById("placesList");
+const placesPlaybackStatus = document.getElementById("placesPlaybackStatus");
+const placesLanguageSelect = document.getElementById("placesLanguageSelect");
 
 let locations = [];
 let languages = [];
+let currentUserCoordinates = null;
+let activePlacesLanguage = "vi";
+let placesLanguageManuallySelected = false;
+let narrationLanguageManuallySelected = false;
+let placesLoaded = false;
+let placesLoadFailed = false;
+let activeSiteLanguage = "vi";
+let currentNarration = null;
 let vietGuideMap = null;
 let vietGuideMarkers = [];
+let vietGuideRadiusCircles = [];
 let featuredMarkers = [];
 let userLocationMarker = null;
 let hasCenteredOnUserLocation = false;
 let narrationRequestVersion = 0;
-const NEARBY_RADIUS_METERS = 50;
+const DEFAULT_NEARBY_RADIUS_METERS = 50;
+
+function getLocationRadius(location) {
+  const value = Number(getFirstValue(location, ["narrationRadiusMeters", "NarrationRadiusMeters"], DEFAULT_NEARBY_RADIUS_METERS));
+  return Number.isFinite(value) && value >= 10 ? value : DEFAULT_NEARBY_RADIUS_METERS;
+}
 const featuredPlaces = [];
 
 // ======================================================
@@ -93,6 +107,31 @@ function getLanguageName(language) {
     ["name", "languageName", "tenNgonNgu", "TenNgonNgu"],
     "Ngôn ngữ",
   );
+}
+
+function getLocationCity(location) {
+  return getFirstValue(location, ["city", "City", "thanhPho", "ThanhPho"]);
+}
+
+function getLocalizedLocationValue(location, fieldNames, language, fallback) {
+  const translations = getFirstValue(
+    location,
+    ["translations", "Translations"],
+    null,
+  );
+  const languageTranslation =
+    translations && typeof translations === "object"
+      ? translations[language] ||
+        translations[language.split("-")[0]] ||
+        null
+      : null;
+
+  if (languageTranslation) {
+    const translatedValue = getFirstValue(languageTranslation, fieldNames);
+    if (translatedValue) return translatedValue;
+  }
+
+  return getFirstValue(location, fieldNames, fallback);
 }
 
 function getArrayFromResponse(response) {
@@ -181,6 +220,148 @@ function setMapMessage(message) {
   }
 }
 
+function formatDistance(distance) {
+  if (distance < 1000) {
+    return `${Math.round(distance)} m`;
+  }
+
+  return `${(distance / 1000).toFixed(1)} km`;
+}
+
+function renderPlacesList() {
+  if (!placesList) return;
+
+  placesList.replaceChildren();
+
+  if (placesLoadFailed) {
+    const status = document.createElement("p");
+    status.className = "places-empty";
+    status.textContent =
+      (siteTranslations[activeSiteLanguage] || siteTranslations.vi)
+        .placesLoadError;
+    placesList.appendChild(status);
+    return;
+  }
+
+  if (!placesLoaded) {
+    const status = document.createElement("p");
+    status.className = "places-empty";
+    status.textContent =
+      (siteTranslations[activeSiteLanguage] || siteTranslations.vi)
+        .placesLoading;
+    placesList.appendChild(status);
+    return;
+  }
+
+  const coordinates = currentUserCoordinates;
+  const sortedLocations = locations
+    .map((location, index) => {
+      const locationCoordinates = getLocationCoordinates(location);
+      return {
+        location,
+        index,
+        distance:
+          coordinates && locationCoordinates
+            ? calculateDistanceMeters(
+                coordinates[0],
+                coordinates[1],
+                locationCoordinates[0],
+                locationCoordinates[1],
+              )
+            : null,
+      };
+    })
+    .sort((a, b) => {
+      if (a.distance === null && b.distance === null) return a.index - b.index;
+      if (a.distance === null) return 1;
+      if (b.distance === null) return -1;
+      return a.distance - b.distance;
+    });
+
+  if (sortedLocations.length === 0) {
+    const status = document.createElement("p");
+    status.className = "places-empty";
+    status.textContent =
+      (siteTranslations[activeSiteLanguage] || siteTranslations.vi)
+        .placesEmpty;
+    placesList.appendChild(status);
+    return;
+  }
+
+  const translations =
+    siteTranslations[activeSiteLanguage] || siteTranslations.vi;
+
+  sortedLocations.forEach(({ location, distance }) => {
+    const card = document.createElement("button");
+    card.className = "place-card";
+    card.type = "button";
+    card.dataset.locationId = String(getLocationId(location));
+    card.setAttribute(
+      "aria-label",
+      `${getLocationName(location)}. ${translations.placeSelect}`,
+    );
+
+    const city = getLocationCity(location);
+    if (city) {
+      const cityLabel = document.createElement("span");
+      cityLabel.className = "place-card-city";
+      cityLabel.textContent = city;
+      card.appendChild(cityLabel);
+    }
+
+    const title = document.createElement("h3");
+    title.className = "place-card-name";
+    title.textContent = getLocalizedLocationValue(
+      location,
+      ["name", "Name", "locationName", "title"],
+      activePlacesLanguage,
+      getLocationName(location),
+    );
+    card.appendChild(title);
+
+    const description = getLocalizedLocationValue(
+      location,
+      ["description", "Description", "descriptionText", "moTa", "MoTa"],
+      activePlacesLanguage,
+      "",
+    );
+    if (description) {
+      const descriptionText = document.createElement("p");
+      descriptionText.className = "place-card-description";
+      descriptionText.textContent = description;
+      card.appendChild(descriptionText);
+    }
+
+    const distanceLabel = document.createElement("span");
+    distanceLabel.className = "place-card-distance";
+    distanceLabel.textContent =
+      distance === null
+        ? translations.distanceUnavailable
+        : formatDistance(distance);
+    card.appendChild(distanceLabel);
+
+    card.addEventListener("click", () => {
+      selectVietGuideLocation(location, {
+        scrollToForm: false,
+        announce: false,
+      });
+      void autoPlayNearbyNarration(location, {
+        force: true,
+        fromPlacesList: true,
+      });
+    });
+    placesList.appendChild(card);
+  });
+}
+
+function setPlacesPlaybackStatus(message, isError = false) {
+  if (!placesPlaybackStatus) return;
+
+  placesPlaybackStatus.textContent = message;
+  placesPlaybackStatus.hidden = !message;
+  placesPlaybackStatus.classList.toggle("is-error", isError);
+}
+
 function formatDate(dateValue) {
   if (!dateValue) {
     return "Không rõ thời gian";
@@ -226,53 +407,154 @@ function fillLocationOptions() {
   });
 }
 
+function findSupportedLanguageCode(preferredCode) {
+  if (!preferredCode) return "";
+
+  const normalizedCode = String(preferredCode).toLowerCase();
+  const baseCode = normalizedCode.split("-")[0];
+  const supportedLanguage = languages.find((language) => {
+    const code = String(getLanguageCode(language) || "").toLowerCase();
+    return code === normalizedCode || code === baseCode;
+  });
+
+  return supportedLanguage ? String(getLanguageCode(supportedLanguage)) : "";
+}
 
 function choosePreferredLanguage() {
-  if (!languageSelect || languages.length === 0) return;
-
-  const supportedLanguages = languages
-    .map((language) => ({
-      code: String(getLanguageCode(language) || ""),
-      name: getLanguageName(language),
-    }))
-    .filter((language) => language.code);
+  if (!languageSelect || languages.length === 0) return "";
 
   const browserLanguages = [
     ...(navigator.languages || []),
     navigator.language || "",
   ]
-    .map((language) => language.toLowerCase())
+    .map((language) => String(language).toLowerCase())
     .filter(Boolean);
 
-  // Ưu tiên ngôn ngữ trình duyệt khớp chính xác,
-  // sau đó thử khớp mã ngôn ngữ cơ bản.
-  let preferred = null;
-
   for (const browserLanguage of browserLanguages) {
-    preferred = supportedLanguages.find(
-      (language) => language.code.toLowerCase() === browserLanguage
-    );
-
-    if (preferred) break;
-
-    const baseLanguage = browserLanguage.split("-")[0];
-
-    preferred = supportedLanguages.find(
-      (language) => language.code.toLowerCase() === baseLanguage
-    );
-
-    if (preferred) break;
+    const preferredCode = findSupportedLanguageCode(browserLanguage);
+    if (preferredCode) {
+      languageSelect.value = preferredCode;
+      return preferredCode;
+    }
   }
 
-  // Nếu không hỗ trợ ngôn ngữ trình duyệt thì ưu tiên tiếng Việt.
-  if (!preferred) {
-    preferred = supportedLanguages.find(
-      (language) => language.code.toLowerCase() === "vi"
-    );
+  const vietnameseCode = findSupportedLanguageCode("vi");
+  languageSelect.value = vietnameseCode;
+  return vietnameseCode;
+}
+
+function getLocationLanguageCode(latitude, longitude) {
+  if (
+    latitude >= 8.18 &&
+    latitude <= 23.4 &&
+    longitude >= 102.14 &&
+    longitude <= 109.47
+  ) {
+    return "vi";
   }
 
-  // Nếu không có tiếng Việt thì để người dùng tự chọn.
-  languageSelect.value = preferred ? preferred.code : "";
+  if (latitude >= 33 && latitude <= 39.5 && longitude >= 124 && longitude <= 132) {
+    return "ko";
+  }
+
+  if (latitude >= 24 && latitude <= 46 && longitude >= 123 && longitude <= 146) {
+    return "ja";
+  }
+
+  if (latitude >= 14 && latitude <= 33.5 && longitude >= -119 && longitude <= -86) {
+    return "es";
+  }
+
+  if (latitude >= 5 && latitude <= 18 && longitude >= -92 && longitude <= -77) {
+    return "es";
+  }
+
+  if (latitude >= -5 && latitude <= 13 && longitude >= -82 && longitude <= -67) {
+    return "es";
+  }
+
+  if (latitude >= -56 && latitude <= -17 && longitude >= -82 && longitude <= -53) {
+    return "es";
+  }
+
+  if (latitude >= 36 && latitude <= 44 && longitude >= -10 && longitude <= 5) {
+    return "es";
+  }
+
+  if (latitude >= 41 && latitude <= 51.5 && longitude >= -5.5 && longitude <= 9.8) {
+    return "fr";
+  }
+
+  if (latitude >= 35 && latitude <= 72 && longitude >= -11 && longitude <= 3) {
+    return "en";
+  }
+
+  if (latitude >= 18 && latitude <= 54 && longitude >= 73 && longitude <= 135) {
+    return "zh";
+  }
+
+  if (latitude >= 24 && latitude <= 50 && longitude >= -125 && longitude <= -66) {
+    return "en";
+  }
+
+  if (latitude >= -45 && latitude <= -10 && longitude >= 112 && longitude <= 154) {
+    return "en";
+  }
+
+  return "";
+}
+
+function applyLocationLanguagePreference(latitude, longitude) {
+  const locationLanguageCode = findSupportedLanguageCode(
+    getLocationLanguageCode(latitude, longitude),
+  );
+  if (!locationLanguageCode) return;
+
+  if (!narrationLanguageManuallySelected && languageSelect) {
+    languageSelect.value = locationLanguageCode;
+  }
+
+  if (!placesLanguageManuallySelected && placesLanguageSelect) {
+    placesLanguageSelect.value = locationLanguageCode;
+    activePlacesLanguage = locationLanguageCode;
+    renderPlacesList();
+  }
+}
+
+function fillPlacesLanguageOptions(preferredCode) {
+  if (!placesLanguageSelect) return;
+
+  const previousValue = placesLanguageSelect.value;
+  placesLanguageSelect.replaceChildren();
+
+  languages.forEach((language) => {
+    const code = getLanguageCode(language);
+    if (!code) return;
+
+    const option = document.createElement("option");
+    option.value = String(code);
+    option.textContent = getLanguageName(language);
+    placesLanguageSelect.appendChild(option);
+  });
+
+  if (placesLanguageSelect.options.length === 0) return;
+
+  const requestedValue = placesLanguageManuallySelected
+    ? previousValue
+    : preferredCode;
+  const matchingOption = Array.from(placesLanguageSelect.options).find(
+    (option) =>
+      option.value.toLowerCase() === String(requestedValue || "").toLowerCase(),
+  );
+  const vietnameseOption = Array.from(placesLanguageSelect.options).find(
+    (option) => option.value.toLowerCase() === "vi",
+  );
+
+  placesLanguageSelect.value = (
+    matchingOption || vietnameseOption || placesLanguageSelect.options[0]
+  ).value;
+  activePlacesLanguage = placesLanguageSelect.value;
+  renderPlacesList();
 }
 
 
@@ -306,13 +588,11 @@ function fillLanguageOptions() {
 async function loadLocations() {
   const response = await getJson("/api/locations");
   locations = getArrayFromResponse(response);
-console.table(
-  locations.map((location) => ({
-    name: getLocationName(location),
-    coordinates: JSON.stringify(getLocationCoordinates(location)),
-  }))
-);
+  placesLoaded = true;
+  placesLoadFailed = false;
+
   fillLocationOptions();
+  renderPlacesList();
   refreshVietGuideMap();
 
   return locations;
@@ -323,7 +603,8 @@ async function loadLanguages() {
   languages = getArrayFromResponse(response);
 
   fillLanguageOptions();
-  choosePreferredLanguage();
+  const preferredLanguage = choosePreferredLanguage();
+  fillPlacesLanguageOptions(preferredLanguage);
 
   return languages;
 }
@@ -335,6 +616,9 @@ async function loadOptions() {
   const languageResult = results[1];
 
   if (locationResult.status === "rejected") {
+    placesLoaded = true;
+    placesLoadFailed = true;
+    renderPlacesList();
     console.error("Lỗi tải địa điểm:", locationResult.reason);
 
     if (locationSelect) {
@@ -367,16 +651,16 @@ async function loadOptions() {
     hideError();
   }
 
-  // Luôn cập nhật bản đồ, kể cả khi API không tải được.
-  refreshVietGuideMap();
+  // loadLocations() cập nhật bản đồ ngay khi dữ liệu địa điểm tải thành công.
+  // Không render lại lần thứ hai ở đây để tránh tạo/xóa marker dư thừa.
+  if (locationResult.status === "rejected") refreshVietGuideMap();
 }
 async function initApp() {
   initVietGuideMap();
   await loadOptions();
 
-  // Tự động xin quyền xác định vị trí khi mở trang.
- // Tự động theo dõi GPS và phát thuyết minh khi đến gần.
-startAutomaticNearbyNarration();
+  // Chờ khách nhấn “Bắt đầu hành trình” để xin quyền GPS và kích hoạt trải nghiệm audio.
+  // Sau thao tác này, GPS được theo dõi liên tục và narration tự phát khi vào vùng.
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
@@ -385,7 +669,11 @@ function clearCurrentNarration() {
   narrationRequestVersion += 1;
   if (submitBtn) {
     submitBtn.disabled = false;
-    submitBtn.innerHTML = 'Nghe thuyết minh <span>↗</span>';
+    submitBtn.removeAttribute("aria-busy");
+    setButtonLabel(
+      "#submitBtn",
+      (siteTranslations[activeSiteLanguage] || siteTranslations.vi).submit,
+    );
   }
   if (audioPlayer) {
     audioPlayer.pause();
@@ -398,6 +686,7 @@ function clearCurrentNarration() {
     resultSection.hidden = true;
     resultSection.style.display = "none";
   }
+  currentNarration = null;
 }
 
 if (locationSelect) {
@@ -423,9 +712,11 @@ if (locationSelect) {
 
 if (languageSelect) {
   languageSelect.addEventListener("change", () => {
+    narrationLanguageManuallySelected = true;
     // Dừng audio cũ và tải ngay narration theo ngôn ngữ vừa chọn.
     clearCurrentNarration();
     autoNarrationKey = "";
+    setPlacesPlaybackStatus("");
 
     // Nếu GPS đang xác định khách ở trong vùng 50 m, không cần bấm
     // "Tìm địa điểm gần tôi"; tự tải và thử phát audio ngôn ngữ mới.
@@ -443,6 +734,12 @@ function displayNarration(item) {
   if (!item) {
     return;
   }
+
+  currentNarration = {
+    locationId: item.locationId,
+    locationName: item.locationName || item.name || "Địa điểm",
+    languageCode: item.languageCode || "",
+  };
 
   const locationName = item.locationName || item.name || "Địa điểm";
 
@@ -518,11 +815,13 @@ if (narrationForm) {
     const requestVersion = ++narrationRequestVersion;
     const requestedLocationId = String(locationId);
     const requestedLanguageCode = String(languageCode);
-    const originalButtonText = submitBtn ? submitBtn.textContent : "";
-
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.textContent = "Đang tải bài thuyết minh...";
+      submitBtn.setAttribute("aria-busy", "true");
+      setButtonLabel(
+        "#submitBtn",
+        (siteTranslations[activeSiteLanguage] || siteTranslations.vi).loading,
+      );
     }
 
     try {
@@ -575,6 +874,18 @@ if (narrationForm) {
           block: "start",
         });
       }
+
+      if (narration.audioUrl && audioPlayer) {
+        try {
+          await audioPlayer.play();
+        } catch (error) {
+          if (requestVersion !== narrationRequestVersion) return;
+          console.warn("Trình duyệt chặn tự phát âm thanh:", error);
+          showError(
+            "Bài thuyết minh đã tải. Trình duyệt chặn tự phát, hãy nhấn nút phát trong trình nghe.",
+          );
+        }
+      }
     } catch (error) {
       if (requestVersion !== narrationRequestVersion) return;
       if (resultSection) {
@@ -588,13 +899,17 @@ if (narrationForm) {
 
         showError(
           error.message ||
-            "Không thể tải bài thuyết minh. Hãy kiểm tra kết nối máy chủ.",
+          "Không thể tải bài thuyết minh. Hãy kiểm tra kết nối máy chủ.",
         );
       }
     } finally {
       if (submitBtn && requestVersion === narrationRequestVersion) {
         submitBtn.disabled = false;
-        submitBtn.textContent = originalButtonText || "Nghe thuyết minh";
+        submitBtn.removeAttribute("aria-busy");
+        setButtonLabel(
+          "#submitBtn",
+          (siteTranslations[activeSiteLanguage] || siteTranslations.vi).submit,
+        );
       }
     }
   });
@@ -663,14 +978,18 @@ function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
 
 // Cập nhật dấu vị trí GPS tự động, không phụ thuộc nút "Tìm vị trí gần tôi".
 function updateUserLocationOnMap(latitude, longitude, centerMap = false) {
+  currentUserCoordinates = [latitude, longitude];
+  applyLocationLanguagePreference(latitude, longitude);
+  renderPlacesList();
+
   if (!vietGuideMap || typeof L === "undefined") return;
 
   if (!userLocationMarker) {
     const icon = L.divIcon({
       className: "",
-      html: '<span class="gps-user-marker"></span>',
-      iconSize: [18, 18],
-      iconAnchor: [9, 9],
+      html: '<svg class="gps-user-marker" viewBox="0 0 25 41" aria-hidden="true"><path d="M12.5 0C5.6 0 0 5.6 0 12.5c0 9.4 12.5 28.5 12.5 28.5S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z" fill="#e53935" stroke="#fff" stroke-width="1.5"/><circle cx="12.5" cy="12.5" r="5" fill="#fff"/></svg>',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
     });
 
     userLocationMarker = L.marker([latitude, longitude], {
@@ -725,6 +1044,8 @@ async function findNearbyLocation() {
     const userLat = position.coords.latitude;
     const userLon = position.coords.longitude;
     const accuracy = position.coords.accuracy;
+    currentUserCoordinates = [userLat, userLon];
+    renderPlacesList();
 
     console.log("=== KIỂM TRA GPS ===");
     console.log("Vĩ độ:", userLat);
@@ -784,15 +1105,18 @@ async function findNearbyLocation() {
         ? `${Math.round(nearest.distance)} m`
         : `${(nearest.distance / 1000).toFixed(2)} km`;
 
-    if (nearest.distance <= NEARBY_RADIUS_METERS) {
+    const nearestRadius = getLocationRadius(nearest.location);
+    if (nearest.distance <= nearestRadius) {
+      currentNearbyLocation = nearest.location;
       selectVietGuideLocation(nearest.location);
 
       setMapMessage(
-        `Bạn đang cách ${getLocationName(nearest.location)} khoảng ${distanceText}, trong phạm vi ${NEARBY_RADIUS_METERS} m.`
+        `Bạn đang cách ${getLocationName(nearest.location)} khoảng ${distanceText}, trong phạm vi ${nearestRadius} m.`
       );
+      await autoPlayNearbyNarration(nearest.location, { force: true });
     } else {
       setMapMessage(
-        `Địa điểm gần nhất là ${getLocationName(nearest.location)}, cách bạn khoảng ${distanceText}; ngoài phạm vi ${NEARBY_RADIUS_METERS} m. Bạn có thể chọn địa điểm gần nhất trên bản đồ hoặc trong danh sách.`
+        `Địa điểm gần nhất là ${getLocationName(nearest.location)}, cách bạn khoảng ${distanceText}; ngoài phạm vi ${nearestRadius} m. Bạn có thể chọn địa điểm gần nhất trên bản đồ hoặc trong danh sách.`
       );
 
       if (vietGuideMap) {
@@ -805,7 +1129,7 @@ async function findNearbyLocation() {
   } catch (error) {
     setMapMessage(
       error.message ||
-        "Không thể xác định vị trí. Bạn vẫn có thể chọn địa điểm thủ công."
+      "Không thể xác định vị trí. Bạn vẫn có thể chọn địa điểm thủ công."
     );
   } finally {
     if (findNearbyButton) {
@@ -820,11 +1144,19 @@ let autoNarrationKey = "";
 let gpsWatchId = null;
 let currentNearbyLocation = null;
 
-async function autoPlayNearbyNarration(location) {
+async function autoPlayNearbyNarration(
+  location,
+  { force = false, fromPlacesList = false } = {},
+) {
   const locationId = String(getLocationId(location));
   const languageCode = String(languageSelect?.value || "");
+  const translations =
+    siteTranslations[activeSiteLanguage] || siteTranslations.vi;
 
   if (!locationId || !languageCode) {
+    if (fromPlacesList) {
+      setPlacesPlaybackStatus(translations.placesNarrationSelectLanguage, true);
+    }
     setMapMessage("Hãy chọn ngôn ngữ thuyết minh để tiếp tục.");
     return;
   }
@@ -832,11 +1164,16 @@ async function autoPlayNearbyNarration(location) {
   const key = `${locationId}_${languageCode}`;
 
   // Không phát lại liên tục khi GPS cập nhật nhiều lần.
-  if (autoNarrationKey === key) {
+  if (!force && autoNarrationKey === key) {
     return;
   }
 
   autoNarrationKey = key;
+  if (fromPlacesList) {
+    setPlacesPlaybackStatus(
+      `${translations.placesNarrationLoading} ${getLocationName(location)}...`,
+    );
+  }
 
   if (locationSelect) {
     locationSelect.value = locationId;
@@ -908,20 +1245,42 @@ async function autoPlayNearbyNarration(location) {
 
     if (audioPlayer && narration.audioUrl) {
       audioPlayer.controls = true;
+      if (fromPlacesList && resultSection) {
+        resultSection.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
 
       try {
         await audioPlayer.play();
+        if (requestVersion !== narrationRequestVersion) return;
+        if (fromPlacesList) {
+          setPlacesPlaybackStatus(
+            `${translations.placesNarrationPlaying} ${getLocationName(location)}.`,
+          );
+        }
         setMapMessage(
           `Bạn đã đến gần ${getLocationName(location)}. Đang tự động phát thuyết minh.`
         );
       } catch (error) {
+        if (requestVersion !== narrationRequestVersion) return;
         console.warn("Trình duyệt chặn tự phát âm thanh:", error);
+        if (fromPlacesList) {
+          setPlacesPlaybackStatus(
+            translations.placesNarrationAutoplayBlocked,
+            true,
+          );
+        }
 
         setMapMessage(
           `Đã tìm thấy ${getLocationName(location)}. Hãy nhấn nút phát trên trình phát âm thanh để bắt đầu nghe.`
         );
       }
     } else {
+      if (fromPlacesList) {
+        setPlacesPlaybackStatus(translations.placesNarrationNoAudio, true);
+      }
       setMapMessage(
         `Đã tìm thấy ${getLocationName(location)}, nhưng địa điểm này chưa có đường dẫn âm thanh.`
       );
@@ -936,6 +1295,14 @@ async function autoPlayNearbyNarration(location) {
 
     // Cho phép thử lại nếu tải bài thuyết minh thất bại.
     autoNarrationKey = "";
+    if (fromPlacesList) {
+      setPlacesPlaybackStatus(
+        error.status === 404
+          ? translations.placesNarrationNotFound
+          : error.message || translations.placesNarrationError,
+        true,
+      );
+    }
 
     setMapMessage(
       error.message || "Không thể tải bài thuyết minh."
@@ -944,6 +1311,7 @@ async function autoPlayNearbyNarration(location) {
 }
 
 function startAutomaticNearbyNarration() {
+  if (gpsWatchId !== null) return;
   if (!("geolocation" in navigator)) {
     setMapMessage("Trình duyệt không hỗ trợ GPS.");
     return;
@@ -980,43 +1348,57 @@ function startAutomaticNearbyNarration() {
         .filter(Boolean)
         .sort((a, b) => a.distance - b.distance);
 
-      const nearest = nearby[0];
+      const eligible = nearby.find((item) => item.distance <= getLocationRadius(item.location));
+      const nearest = eligible || nearby[0];
 
-      if (!nearest || nearest.distance > NEARBY_RADIUS_METERS) {
+      if (!eligible) {
         currentNearbyLocation = null;
-        // Reset only after moving clearly outside the 50 m zone. A small
-        // 25 m buffer prevents GPS jitter around the boundary from replaying audio.
-        if (!nearest || nearest.distance > NEARBY_RADIUS_METERS + 25) {
+        // Hysteresis 25 m avoids replaying audio due to GPS drift at the edge.
+        const previousLocation = locations.find((item) => autoNarrationKey.startsWith(`${getLocationId(item)}_`));
+        const previousCoordinates = previousLocation ? getLocationCoordinates(previousLocation) : null;
+        const distanceFromPrevious = previousCoordinates
+          ? calculateDistanceMeters(userLat, userLon, previousCoordinates[0], previousCoordinates[1])
+          : Number.POSITIVE_INFINITY;
+        if (!previousLocation || distanceFromPrevious > getLocationRadius(previousLocation) + 25) {
           autoNarrationKey = "";
         }
-
-        setMapMessage(
-          `Đang tìm địa điểm trong phạm vi ${NEARBY_RADIUS_METERS} m...`
-        );
+        setMapMessage(`Đang tìm địa điểm trong vùng bán kính riêng (mặc định ${DEFAULT_NEARBY_RADIUS_METERS} m)...`);
         return;
       }
 
-      currentNearbyLocation = nearest.location;
-      autoPlayNearbyNarration(nearest.location);
+      currentNearbyLocation = eligible.location;
+      autoPlayNearbyNarration(eligible.location);
     },
     (error) => {
       console.error("Không lấy được GPS:", error);
 
+      if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
+      gpsWatchId = null;
+      if (startJourneyButton) {
+        startJourneyButton.disabled = false;
+        startJourneyButton.textContent = "Thử bật GPS lại";
+      }
       setMapMessage(
         "Không thể xác định vị trí. Hãy cấp quyền GPS cho trình duyệt."
       );
     },
     {
       enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 0,
+      timeout: 20000,
+      maximumAge: 5000,
     }
   );
 }
 
 // Đăng ký sự kiện một lần, bên ngoài hàm findNearbyLocation().
-if (findNearbyButton) {
-  findNearbyButton.addEventListener("click", findNearbyLocation);
+if (findNearbyButton) findNearbyButton.addEventListener("click", findNearbyLocation);
+if (startJourneyButton) {
+  startJourneyButton.addEventListener("click", () => {
+    startAutomaticNearbyNarration();
+    startJourneyButton.disabled = true;
+    startJourneyButton.innerHTML = '<span aria-hidden="true">✓</span> Đang theo dõi hành trình';
+    setMapMessage("Đang theo dõi GPS. Khi bạn bước vào vùng bán kính màu xanh, VietGuide sẽ tải và phát thuyết minh.");
+  });
 }
 
 function initVietGuideMap() {
@@ -1033,6 +1415,7 @@ function initVietGuideMap() {
   if (vietGuideMap) return;
 
   vietGuideMap = L.map(exploreMap, {
+    preferCanvas: true,
     center: [16.0, 107.5],
     zoom: 5,
     minZoom: 4,
@@ -1048,6 +1431,9 @@ function initVietGuideMap() {
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
+    updateWhenIdle: true,
+    updateWhenZooming: false,
+    keepBuffer: 2,
   }).addTo(vietGuideMap);
 
   addFeaturedPlaces();
@@ -1099,7 +1485,10 @@ function getLocationCoordinates(location) {
   return null;
 }
 
-function selectVietGuideLocation(location) {
+function selectVietGuideLocation(
+  location,
+  { scrollToForm = true, announce = true } = {},
+) {
   if (!location || !locationSelect) {
     return;
   }
@@ -1111,8 +1500,9 @@ function selectVietGuideLocation(location) {
   // Thông báo cho các listener hiện có khi chọn địa điểm từ bản đồ.
   locationSelect.dispatchEvent(new Event("change", { bubbles: true }));
 
-  const createSection = document.getElementById("create");
-
+  const createSection = scrollToForm
+    ? document.getElementById("create")
+    : null;
   if (createSection) {
     createSection.scrollIntoView({
       behavior: "smooth",
@@ -1120,9 +1510,11 @@ function selectVietGuideLocation(location) {
     });
   }
 
-  setMapMessage(
-    `Đã chọn địa điểm: ${getLocationName(location)}. Hãy chọn ngôn ngữ và tạo bài thuyết minh.`,
-  );
+  if (announce) {
+    setMapMessage(
+      `Đã chọn địa điểm: ${getLocationName(location)}. Hãy chọn ngôn ngữ và tạo bài thuyết minh.`,
+    );
+  }
 }
 
 function addFeaturedPlaces() {
@@ -1209,16 +1601,27 @@ function refreshVietGuideMap() {
   }
 
   // Chỉ xóa ghim từ API, không xóa 9 ghim cố định.
-  vietGuideMarkers.forEach((marker) => {
-    vietGuideMap.removeLayer(marker);
-  });
-
+  vietGuideMarkers.forEach((marker) => vietGuideMap.removeLayer(marker));
+  vietGuideRadiusCircles.forEach((circle) => vietGuideMap.removeLayer(circle));
   vietGuideMarkers = [];
+  vietGuideRadiusCircles = [];
 
   locations.forEach((location) => {
     const coordinates = getLocationCoordinates(location);
 
     if (!coordinates) return;
+
+    const radius = getLocationRadius(location);
+    const radiusCircle = L.circle(coordinates, {
+      radius,
+      color: "#16865b",
+      weight: 2,
+      opacity: 0.8,
+      fillColor: "#27ae70",
+      fillOpacity: 0.12,
+      interactive: false,
+    }).addTo(vietGuideMap);
+    vietGuideRadiusCircles.push(radiusCircle);
 
     const marker = L.marker(coordinates).addTo(vietGuideMap);
 
@@ -1227,6 +1630,9 @@ function refreshVietGuideMap() {
     const title = document.createElement("strong");
     title.textContent = getLocationName(location);
     popup.appendChild(title);
+    const radiusInfo = document.createElement("p");
+    radiusInfo.textContent = `Vùng tự động thuyết minh: ${radius} m`;
+    popup.appendChild(radiusInfo);
 
     const button = document.createElement("button");
     button.type = "button";
@@ -1253,10 +1659,10 @@ function refreshVietGuideMap() {
 
   const withoutCoordinates = locations.length - vietGuideMarkers.length;
   setMapMessage(
-    `Bản đồ hiển thị ${vietGuideMarkers.length} địa điểm có tọa độ trong dữ liệu hệ thống.` +
-      (withoutCoordinates > 0
-        ? ` ${withoutCoordinates} địa điểm chưa có tọa độ nên chỉ có trong danh sách.`
-        : ""),
+    `Bản đồ hiển thị ${vietGuideMarkers.length} địa điểm và vùng thuyết minh bán kính riêng.` +
+    (withoutCoordinates > 0
+      ? ` ${withoutCoordinates} địa điểm chưa có tọa độ nên chỉ có trong danh sách.`
+      : ""),
   );
 }
 
@@ -1270,12 +1676,15 @@ function refreshVietGuideMap() {
 (() => {
   if (!audioPlayer) return;
 
+  const LISTEN_THRESHOLD_MS = 15000;
+  const RETRY_DELAY_MS = 5000;
   let listenedMs = 0;
   let lastTick = null;
   let lastAudioTime = null;
   let recorded = false;
   let recording = false;
-  let activeNarrationKey = "";
+  let listenId = crypto.randomUUID();
+  let nextRecordAttemptAt = 0;
 
   function resetListenSession() {
     listenedMs = 0;
@@ -1283,6 +1692,8 @@ function refreshVietGuideMap() {
     lastAudioTime = null;
     recorded = false;
     recording = false;
+    listenId = crypto.randomUUID();
+    nextRecordAttemptAt = 0;
   }
 
   function resetContinuousTimer() {
@@ -1305,10 +1716,17 @@ function refreshVietGuideMap() {
     }
   });
   audioPlayer.addEventListener("emptied", resetListenSession);
-  audioPlayer.addEventListener("ended", resetListenSession);
+  audioPlayer.addEventListener("ended", resetContinuousTimer);
 
   setInterval(async () => {
-    if (audioPlayer.paused || audioPlayer.ended || audioPlayer.seeking || !audioPlayer.currentSrc || recorded || recording) {
+    if (
+      audioPlayer.paused ||
+      audioPlayer.ended ||
+      audioPlayer.seeking ||
+      !audioPlayer.currentSrc ||
+      recorded ||
+      recording
+    ) {
       lastTick = null;
       lastAudioTime = null;
       return;
@@ -1328,36 +1746,68 @@ function refreshVietGuideMap() {
     lastTick = now;
     lastAudioTime = currentAudioTime;
 
-    if (listenedMs >= 15000) {
-      recorded = true;
-      recording = true;
-      try {
-        const selectedLocation = locations.find((location) => String(getLocationId(location)) === String(locationSelect?.value || ""));
-        const selectedLanguage = languageSelect?.value || null;
-        const response = await fetch("/api/audio-listens", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            listenId: crypto.randomUUID(),
-            locationName: selectedLocation ? getLocationName(selectedLocation) : (locationSelect?.selectedOptions?.[0]?.textContent?.trim() || null),
-            languageCode: selectedLanguage,
-          }),
-        });
-        if (!response.ok) throw new Error(`Không lưu được lượt nghe (HTTP ${response.status}).`);
-        console.log("Đã ghi nhận lượt nghe đủ 15 giây liên tục.");
-      } catch (error) {
-        // Không tự tạo nhiều lượt nghe trùng trong cùng một phiên phát.
-        console.error("Lỗi ghi nhận lượt nghe:", error);
-      } finally {
-        recording = false;
-      }
+    if (
+      listenedMs < LISTEN_THRESHOLD_MS ||
+      recording ||
+      recorded ||
+      now < nextRecordAttemptAt
+    ) {
+      return;
     }
-    
 
+    const narration = currentNarration;
+    if (!narration?.locationId || !narration.languageCode) {
+      console.error("Không ghi nhận được lượt nghe: thiếu thông tin narration đang phát.");
+      recorded = true;
+      return;
+    }
 
+    recording = true;
+    try {
+      let visitorId = null;
+      try {
+        const storedVisitorId = localStorage.getItem("vietguide_visitor_id");
+        if (
+          storedVisitorId &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            storedVisitorId,
+          )
+        ) {
+          visitorId = storedVisitorId;
+        }
+      } catch (error) {
+        console.warn("Không đọc được mã khách truy cập; sẽ ghi lượt nghe ẩn danh.", error);
+      }
 
-  },
-   250);
+      const locationId = Number(narration.locationId);
+      const response = await fetch("/api/audio-listens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          listenId,
+          visitorId,
+          locationId: Number.isInteger(locationId) ? locationId : null,
+          locationName: narration.locationName,
+          languageCode: narration.languageCode,
+        }),
+      });
+
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error(
+          `Không lưu được lượt nghe (HTTP ${response.status}).${details ? ` ${details}` : ""}`,
+        );
+      }
+
+      recorded = true;
+      console.log("Đã ghi nhận lượt nghe đủ 15 giây liên tục.");
+    } catch (error) {
+      nextRecordAttemptAt = performance.now() + RETRY_DELAY_MS;
+      console.error("Lỗi ghi nhận lượt nghe; sẽ thử lại:", error);
+    } finally {
+      recording = false;
+    }
+  }, 250);
 })();
 /* ===== DOI NGON NGU GIAO DIEN VIETGUIDE ===== */
 
@@ -1380,6 +1830,22 @@ const siteTranslations = {
     feature2: "Đa ngôn ngữ",
     feature3: "Nghe và cảm nhận",
     mapKicker: "KHÁM PHÁ VIỆT NAM",
+    placesKicker: "ĐIỂM ĐẾN DÀNH CHO BẠN",
+    placesTitle: 'Khám phá <em>các địa điểm.</em>',
+    placesLanguageLabel: "Ngôn ngữ",
+    placesLoading: "Đang tải danh sách địa điểm...",
+    placesDescription: "Các địa điểm được sắp xếp từ gần đến xa dựa trên vị trí hiện tại của bạn.",
+    placesEmpty: "Chưa có địa điểm nào để hiển thị.",
+    placesLoadError: "Không tải được danh sách địa điểm. Vui lòng thử tải lại trang.",
+    placesNarrationSelectLanguage: "Vui lòng chọn ngôn ngữ thuyết minh trước.",
+    placesNarrationLoading: "Đang tải thuyết minh cho",
+    placesNarrationPlaying: "Đang phát thuyết minh cho",
+    placesNarrationAutoplayBlocked: "Trình duyệt chưa cho phép tự phát. Hãy nhấn nút phát trong trình nghe bên dưới.",
+    placesNarrationNoAudio: "Bài thuyết minh này chưa có audio.",
+    placesNarrationNotFound: "Chưa có bài thuyết minh cho địa điểm và ngôn ngữ này.",
+    placesNarrationError: "Không thể tải bài thuyết minh. Vui lòng thử lại.",
+    distanceUnavailable: "Chưa xác định khoảng cách",
+    placeSelect: "Chọn địa điểm",
     mapTitle: 'Bạn muốn khám phá <em>ở đâu?</em>',
     mapDescription:
       "Chọn một địa điểm trên bản đồ để bắt đầu hành trình thuyết minh đa ngôn ngữ.",
@@ -1391,6 +1857,7 @@ const siteTranslations = {
     locationLabel: "Bạn muốn khám phá đâu?",
     languageLabel: "Ngôn ngữ thuyết minh",
     submit: "Nghe thuyết minh",
+    loading: "Đang tải thuyết minh...",
     resultKicker: "CÂU CHUYỆN DÀNH CHO BẠN",
     resultTitle: 'Điều thú vị <em>đang chờ bạn.</em>',
     copy: "Sao chép nội dung ↗",
@@ -1415,6 +1882,22 @@ const siteTranslations = {
     feature2: "Multilingual",
     feature3: "Listen and discover",
     mapKicker: "EXPLORE VIETNAM",
+    placesKicker: "DESTINATIONS FOR YOU",
+    placesTitle: 'Explore <em>the destinations.</em>',
+    placesLanguageLabel: "Language",
+    placesLoading: "Loading destinations...",
+    placesDescription: "Destinations are sorted from nearest to farthest based on your current location.",
+    placesEmpty: "There are no destinations to display yet.",
+    placesLoadError: "Could not load destinations. Please reload the page.",
+    placesNarrationSelectLanguage: "Please choose a narration language first.",
+    placesNarrationLoading: "Loading narration for",
+    placesNarrationPlaying: "Playing narration for",
+    placesNarrationAutoplayBlocked: "Your browser blocked autoplay. Press play in the audio player below.",
+    placesNarrationNoAudio: "This narration does not have an audio file yet.",
+    placesNarrationNotFound: "No narration is available for this destination and language.",
+    placesNarrationError: "Could not load the narration. Please try again.",
+    distanceUnavailable: "Distance unavailable",
+    placeSelect: "Select destination",
     mapTitle: 'Where would you like <em>to explore?</em>',
     mapDescription:
       "Choose a place on the map to begin your multilingual audio tour.",
@@ -1426,6 +1909,7 @@ const siteTranslations = {
     locationLabel: "Where would you like to explore?",
     languageLabel: "Narration language",
     submit: "Listen to narration",
+    loading: "Loading narration...",
     resultKicker: "YOUR STORY",
     resultTitle: 'Something wonderful <em>awaits you.</em>',
     copy: "Copy narration ↗",
@@ -1449,6 +1933,22 @@ const siteTranslations = {
     feature2: "多言語対応",
     feature3: "聞いて感じる",
     mapKicker: "ベトナムを探検",
+    placesKicker: "おすすめの目的地",
+    placesTitle: "目的地を <em>探検しましょう。</em>",
+    placesLanguageLabel: "言語",
+    placesLoading: "目的地を読み込んでいます...",
+    placesDescription: "現在地から近い順に目的地を表示します。",
+    placesEmpty: "表示できる目的地はありません。",
+    placesLoadError: "目的地を読み込めませんでした。ページを再読み込みしてください。",
+    placesNarrationSelectLanguage: "先に音声ガイドの言語を選択してください。",
+    placesNarrationLoading: "音声ガイドを読み込んでいます:",
+    placesNarrationPlaying: "音声ガイドを再生中:",
+    placesNarrationAutoplayBlocked: "自動再生がブロックされました。下のプレーヤーで再生を押してください。",
+    placesNarrationNoAudio: "この音声ガイドには音声ファイルがありません。",
+    placesNarrationNotFound: "この目的地と言語の音声ガイドはありません。",
+    placesNarrationError: "音声ガイドを読み込めませんでした。もう一度お試しください。",
+    distanceUnavailable: "距離を確認できません",
+    placeSelect: "目的地を選択",
     mapTitle: "どこを <em>探検しますか？</em>",
     mapDescription: "地図から場所を選び、多言語音声ガイドを始めましょう。",
     gpsButton: "近くの場所を探す",
@@ -1459,6 +1959,7 @@ const siteTranslations = {
     locationLabel: "どこを探検しますか？",
     languageLabel: "音声ガイドの言語",
     submit: "音声ガイドを聞く",
+    loading: "音声ガイドを読み込み中...",
     resultKicker: "あなたの物語",
     resultTitle: "素敵な発見が <em>待っています。</em>",
     copy: "内容をコピー ↗",
@@ -1482,6 +1983,22 @@ const siteTranslations = {
     feature2: "다국어 지원",
     feature3: "듣고 느끼기",
     mapKicker: "베트남 탐험",
+    placesKicker: "추천 여행지",
+    placesTitle: "여행지를 <em>탐험해 보세요.</em>",
+    placesLanguageLabel: "언어",
+    placesLoading: "여행지를 불러오는 중...",
+    placesDescription: "현재 위치에서 가까운 순서로 여행지를 표시합니다.",
+    placesEmpty: "표시할 여행지가 없습니다.",
+    placesLoadError: "여행지를 불러오지 못했습니다. 페이지를 새로고침해 주세요.",
+    placesNarrationSelectLanguage: "먼저 오디오 가이드 언어를 선택해 주세요.",
+    placesNarrationLoading: "오디오 가이드 불러오는 중:",
+    placesNarrationPlaying: "오디오 가이드 재생 중:",
+    placesNarrationAutoplayBlocked: "브라우저에서 자동 재생을 차단했습니다. 아래 플레이어에서 재생을 눌러 주세요.",
+    placesNarrationNoAudio: "이 오디오 가이드에는 아직 오디오 파일이 없습니다.",
+    placesNarrationNotFound: "이 여행지와 언어에 대한 오디오 가이드가 없습니다.",
+    placesNarrationError: "오디오 가이드를 불러오지 못했습니다. 다시 시도해 주세요.",
+    distanceUnavailable: "거리 확인 불가",
+    placeSelect: "여행지 선택",
     mapTitle: "어디를 <em>탐험하고 싶으신가요?</em>",
     mapDescription: "지도에서 장소를 선택하고 다국어 오디오 가이드를 시작하세요.",
     gpsButton: "내 주변 장소 찾기",
@@ -1492,6 +2009,7 @@ const siteTranslations = {
     locationLabel: "어디를 탐험하고 싶으신가요?",
     languageLabel: "가이드 언어",
     submit: "오디오 가이드 듣기",
+    loading: "오디오 가이드 불러오는 중...",
     resultKicker: "당신을 위한 이야기",
     resultTitle: "새로운 발견이 <em>기다립니다.</em>",
     copy: "내용 복사 ↗",
@@ -1515,6 +2033,22 @@ const siteTranslations = {
     feature2: "Multilingue",
     feature3: "Écouter et découvrir",
     mapKicker: "EXPLORER LE VIETNAM",
+    placesKicker: "DESTINATIONS POUR VOUS",
+    placesTitle: "Explorez <em>les destinations.</em>",
+    placesLanguageLabel: "Langue",
+    placesLoading: "Chargement des destinations...",
+    placesDescription: "Les lieux sont classés du plus proche au plus éloigné selon votre position actuelle.",
+    placesEmpty: "Aucune destination à afficher pour le moment.",
+    placesLoadError: "Impossible de charger les destinations. Rechargez la page.",
+    placesNarrationSelectLanguage: "Veuillez d'abord choisir la langue du guide.",
+    placesNarrationLoading: "Chargement du guide pour",
+    placesNarrationPlaying: "Lecture du guide pour",
+    placesNarrationAutoplayBlocked: "La lecture automatique est bloquée. Appuyez sur Lecture dans le lecteur ci-dessous.",
+    placesNarrationNoAudio: "Ce guide audio ne contient pas encore de fichier audio.",
+    placesNarrationNotFound: "Aucun guide n'est disponible pour cette destination et cette langue.",
+    placesNarrationError: "Impossible de charger le guide. Veuillez réessayer.",
+    distanceUnavailable: "Distance indisponible",
+    placeSelect: "Choisir cette destination",
     mapTitle: "Où souhaitez-vous <em>explorer ?</em>",
     mapDescription: "Choisissez un lieu sur la carte pour commencer votre visite audio multilingue.",
     gpsButton: "Trouver des lieux près de moi",
@@ -1525,6 +2059,7 @@ const siteTranslations = {
     locationLabel: "Où souhaitez-vous explorer ?",
     languageLabel: "Langue du guide",
     submit: "Écouter le guide",
+    loading: "Chargement du guide...",
     resultKicker: "VOTRE HISTOIRE",
     resultTitle: "De belles découvertes <em>vous attendent.</em>",
     copy: "Copier le contenu ↗",
@@ -1551,6 +2086,7 @@ function setButtonLabel(selector, value) {
 }
 function setSiteLanguage(language) {
   const translations = siteTranslations[language] || siteTranslations.vi;
+  activeSiteLanguage = siteTranslations[language] ? language : "vi";
 
   document.documentElement.lang = language;
 
@@ -1584,11 +2120,11 @@ function setSiteLanguage(language) {
     }
   });
 
-setButtonLabel(".nav-cta", translations.navCta);
+  setButtonLabel(".nav-cta", translations.navCta);
   setText(".eyebrow", translations.eyebrow);
   setHTML(".hero-content h1", translations.heroTitle);
   setText(".hero-content > p", translations.heroDescription);
- setButtonLabel(".hero-link", translations.heroLink);
+  setButtonLabel(".hero-link", translations.heroLink);
   setText(".hero-note", translations.heroNote);
 
   setText(".intro .section-kicker", translations.introKicker);
@@ -1601,9 +2137,17 @@ setButtonLabel(".nav-cta", translations.navCta);
     });
 
   setText("#mapExplore .section-label", translations.mapKicker);
+  setText("#placesKicker", translations.placesKicker);
+  setHTML("#placesTitle", translations.placesTitle);
+  setText("#placesLanguageLabel", translations.placesLanguageLabel);
+  const placesLanguageLabel = document.getElementById("placesLanguageSelect");
+  if (placesLanguageLabel) {
+    placesLanguageLabel.setAttribute("aria-label", translations.placesLanguageLabel);
+  }
+  setText("#placesDescription", translations.placesDescription);
   setHTML("#mapExplore h2", translations.mapTitle);
   setText("#mapExplore .section-description", translations.mapDescription);
-setButtonLabel("#findNearbyButton", translations.gpsButton);
+  setButtonLabel("#findNearbyButton", translations.gpsButton);
 
   setText(".builder-copy .section-kicker", translations.builderKicker);
   setHTML(".builder-copy h2", translations.builderTitle);
@@ -1614,7 +2158,7 @@ setButtonLabel("#findNearbyButton", translations.gpsButton);
   if (labels[0]) labels[0].textContent = translations.locationLabel;
   if (labels[1]) labels[1].textContent = translations.languageLabel;
 
-setButtonLabel("#submitBtn", translations.submit);
+  setButtonLabel("#submitBtn", translations.submit);
   setText(".result-section .section-kicker", translations.resultKicker);
   setHTML(".result-head h2", translations.resultTitle);
   setText("#copyBtn", translations.copy);
@@ -1623,6 +2167,24 @@ setButtonLabel("#submitBtn", translations.submit);
   document.dispatchEvent(
     new CustomEvent("siteLanguageChange", { detail: { language } })
   );
+  renderPlacesList();
+}
+
+function getPreferredSiteLanguage() {
+  const browserLanguages = [
+    ...(navigator.languages || []),
+    navigator.language || "",
+  ];
+
+  for (const browserLanguage of browserLanguages) {
+    const normalized = browserLanguage.toLowerCase();
+    if (siteTranslations[normalized]) return normalized;
+
+    const baseLanguage = normalized.split("-")[0];
+    if (siteTranslations[baseLanguage]) return baseLanguage;
+  }
+
+  return "vi";
 }
 
 function initSiteLanguageMenu() {
@@ -1645,6 +2207,23 @@ function initSiteLanguageMenu() {
     });
   });
 
+  if (placesLanguageSelect) {
+    placesLanguageSelect.addEventListener("change", () => {
+      const language = placesLanguageSelect.value;
+      activePlacesLanguage = language;
+      placesLanguageManuallySelected = true;
+      renderPlacesList();
+
+      const narrationOption = Array.from(languageSelect?.options || []).find(
+        (option) => option.value.toLowerCase() === language.toLowerCase(),
+      );
+      if (languageSelect && narrationOption) {
+        languageSelect.value = narrationOption.value;
+        languageSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+  }
+
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".site-language")) {
       menu.hidden = true;
@@ -1652,8 +2231,7 @@ function initSiteLanguageMenu() {
     }
   });
 
-  // Ngôn ngữ giao diện ban đầu
-  setSiteLanguage("vi");
+  setSiteLanguage(getPreferredSiteLanguage());
 }
 
 if (document.readyState === "loading") {

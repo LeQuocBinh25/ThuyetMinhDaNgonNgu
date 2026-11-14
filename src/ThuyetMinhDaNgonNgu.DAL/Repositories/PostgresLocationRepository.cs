@@ -18,7 +18,8 @@ public sealed class PostgresLocationRepository(AppDbContext dbContext) : ILocati
                 location.City,
                 location.Description,
                 location.Latitude,
-                location.Longitude))
+                location.Longitude,
+                location.NarrationRadiusMeters))
             .ToListAsync(cancellationToken);
 
     public async Task<TouristLocation?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
@@ -30,7 +31,8 @@ public sealed class PostgresLocationRepository(AppDbContext dbContext) : ILocati
                 location.City,
                 location.Description,
                 location.Latitude,
-                location.Longitude))
+                location.Longitude,
+                location.NarrationRadiusMeters))
             .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<TouristLocation> AddAsync(
@@ -39,6 +41,7 @@ public sealed class PostgresLocationRepository(AppDbContext dbContext) : ILocati
         string description,
         double? latitude,
         double? longitude,
+        int narrationRadiusMeters = 50,
         CancellationToken cancellationToken = default)
     {
         var entity = new LocationEntity
@@ -47,12 +50,13 @@ public sealed class PostgresLocationRepository(AppDbContext dbContext) : ILocati
             City = city,
             Description = description,
             Latitude = latitude,
-            Longitude = longitude
+            Longitude = longitude,
+            NarrationRadiusMeters = narrationRadiusMeters
         };
 
         dbContext.Locations.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return new TouristLocation(entity.Id, entity.Name, entity.City, entity.Description, entity.Latitude, entity.Longitude);
+        return new TouristLocation(entity.Id, entity.Name, entity.City, entity.Description, entity.Latitude, entity.Longitude, entity.NarrationRadiusMeters);
     }
 
     public async Task<TouristLocation?> UpdateAsync(
@@ -62,6 +66,7 @@ public sealed class PostgresLocationRepository(AppDbContext dbContext) : ILocati
         string description,
         double? latitude,
         double? longitude,
+        int narrationRadiusMeters = 50,
         CancellationToken cancellationToken = default)
     {
         var entity = await dbContext.Locations.FirstOrDefaultAsync(
@@ -77,6 +82,7 @@ public sealed class PostgresLocationRepository(AppDbContext dbContext) : ILocati
         entity.Description = description;
         entity.Latitude = latitude;
         entity.Longitude = longitude;
+        entity.NarrationRadiusMeters = narrationRadiusMeters;
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return new TouristLocation(
@@ -85,7 +91,8 @@ public sealed class PostgresLocationRepository(AppDbContext dbContext) : ILocati
             entity.City,
             entity.Description,
             entity.Latitude,
-            entity.Longitude);
+            entity.Longitude,
+            entity.NarrationRadiusMeters);
     }
 
     public async Task<LocationDeleteResult> DeleteAsync(

@@ -1,57 +1,12 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const TOKEN_KEY = "vietguide_admin_token";
-const EXPIRY_KEY = "vietguide_admin_token_expiry";
 let locations = [];
 let languages = [];
 let savedNarrations = [];
 
-function token() {
-    const storedToken = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
-    const storedExpiry = localStorage.getItem(EXPIRY_KEY) || sessionStorage.getItem(EXPIRY_KEY);
-    const expiresAt = Number(storedExpiry || 0);
-    if (!storedToken || expiresAt <= Date.now()) {
-        clearToken();
-        return "";
-    }
-
-    localStorage.setItem(TOKEN_KEY, storedToken);
-    localStorage.setItem(EXPIRY_KEY, String(expiresAt));
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(EXPIRY_KEY);
-    return storedToken;
-}
-
-function clearToken() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(EXPIRY_KEY);
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(EXPIRY_KEY);
-}
-
-function showLogin(message = "") {
-    $("adminHeader").hidden = true;
-    $("loginPanel").hidden = false;
-    $("adminContent").hidden = true;
-    $("adminIntro").hidden = true;
-    $("adminFooter").hidden = true;
-    $("dashboardBtn").hidden = true;
-    $("logoutBtn").hidden = true;
-    if (message) {
-        $("loginMessage").textContent = message;
-        $("loginMessage").style.color = "#b43e32";
-    }
-}
-
 function showAdmin() {
-    $("adminHeader").hidden = false;
-    $("loginPanel").hidden = true;
     $("adminContent").hidden = false;
-    $("adminIntro").hidden = false;
-    $("adminFooter").hidden = false;
-    $("dashboardBtn").hidden = false;
-    $("logoutBtn").hidden = false;
 }
 
 async function api(url, options = {}) {
@@ -60,29 +15,16 @@ async function api(url, options = {}) {
         headers.set("Content-Type", "application/json");
     }
 
-    if (
-        url.startsWith("/api/admin/") ||
-        url.startsWith("/api/locations") ||
-        url.startsWith("/api/languages")
-    ) {
-        const accessToken = token();
-        if (accessToken) {
-            headers.set("Authorization", `Bearer ${accessToken}`);
-        }
-    }
+    // Không cần gửi JWT vì hệ thống không yêu cầu đăng nhập.
+    const response = await fetch(url, {
+        ...options,
+        headers
+    });
 
-    const response = await fetch(url, { ...options, headers });
     const contentType = response.headers.get("content-type") || "";
     const data = contentType.includes("json")
         ? await response.json()
         : await response.text();
-
-    if (response.status === 401 || response.status === 403) {
-        clearToken();
-        showLogin(response.status === 401
-            ? "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
-            : "Tài khoản không có quyền thực hiện thao tác này.");
-    }
 
     if (!response.ok) {
         const message = typeof data === "string"
@@ -164,7 +106,7 @@ function renderLocations() {
         const name = document.createElement("strong");
         name.textContent = item.name;
         const city = document.createElement("small");
-        city.textContent = item.city || "";
+        city.textContent = `${item.city || ""} · Bán kính: ${item.narrationRadiusMeters ?? 50} m`;
         details.append(name, city);
 
         const actions = document.createElement("div");
@@ -201,6 +143,7 @@ function confirmAction(message, title = "Xác nhận thao tác") {
 function resetLocationForm() {
     $("locationForm").reset();
     $("locationId").value = "";
+    $("locationRadius").value = "50";
     $("saveLocationBtn").textContent = "Thêm địa điểm";
     $("cancelLocationEditBtn").hidden = true;
 }
@@ -313,31 +256,6 @@ async function loadAdminData() {
     }
 }
 
-$("loginForm").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    msg("loginMessage", "Đang xác thực...");
-    try {
-        const result = await api("/api/admin/auth/login", {
-            method: "POST",
-            body: JSON.stringify({
-                username: $("username").value,
-                password: $("password").value
-            })
-        });
-        localStorage.setItem(TOKEN_KEY, result.accessToken);
-        localStorage.setItem(EXPIRY_KEY, String(new Date(result.expiresAtUtc).getTime()));
-        $("password").value = "";
-        await loadAdminData();
-    } catch (error) {
-        msg("loginMessage", error.message, true);
-    }
-});
-
-$("logoutBtn").addEventListener("click", () => {
-    clearToken();
-    showLogin("Bạn đã đăng xuất.");
-});
-
 $("locationForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const id = $("locationId").value;
@@ -356,7 +274,8 @@ $("locationForm").addEventListener("submit", async (event) => {
         city: $("locationCity").value.trim(),
         description: $("locationDescription").value.trim(),
         latitude,
-        longitude
+        longitude,
+        narrationRadiusMeters: Number($("locationRadius").value || 50)
     };
 
     try {
@@ -392,6 +311,7 @@ $("locationList").addEventListener("click", async (event) => {
         $("locationDescription").value = location.description || "";
         $("locationLatitude").value = location.latitude ?? "";
         $("locationLongitude").value = location.longitude ?? "";
+        $("locationRadius").value = location.narrationRadiusMeters ?? 50;
         $("saveLocationBtn").textContent = "Lưu thay đổi";
         $("cancelLocationEditBtn").hidden = false;
         $("locationForm").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -596,8 +516,12 @@ $("loadBtn").addEventListener("click", async () => {
     }
 });
 
-if (token()) {
-    loadAdminData();
-} else {
-    showLogin();
-}
+document.addEventListener("DOMContentLoaded", async () => {
+    showAdmin();
+
+    try {
+        await loadAdminData();
+    } catch (error) {
+        console.error("Không thể tải dữ liệu quản trị:", error);
+    }
+});

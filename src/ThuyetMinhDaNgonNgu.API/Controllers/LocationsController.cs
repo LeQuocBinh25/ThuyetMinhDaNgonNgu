@@ -35,7 +35,8 @@ public sealed class LocationsController : ControllerBase
                 location.City,
                 location.Description,
                 location.Latitude,
-                location.Longitude))
+                location.Longitude,
+                location.NarrationRadiusMeters))
             .ToArray();
 
         return Ok(response);
@@ -61,11 +62,11 @@ public sealed class LocationsController : ControllerBase
             location.City,
             location.Description,
             location.Latitude,
-            location.Longitude));
+            location.Longitude,
+            location.NarrationRadiusMeters));
     }
     
     [HttpPost]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(LocationResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [EndpointSummary("Tạo địa điểm mới.")]
@@ -81,6 +82,7 @@ public sealed class LocationsController : ControllerBase
                 request.Description,
                 request.Latitude,
                 request.Longitude,
+                request.NarrationRadiusMeters,
                 cancellationToken);
 
             return CreatedAtAction(
@@ -95,7 +97,6 @@ public sealed class LocationsController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(LocationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -115,6 +116,7 @@ public sealed class LocationsController : ControllerBase
                 request.Description,
                 request.Latitude,
                 request.Longitude,
+                request.NarrationRadiusMeters,
                 cancellationToken);
 
             return location is null
@@ -130,7 +132,6 @@ public sealed class LocationsController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -175,5 +176,6 @@ public sealed class LocationsController : ControllerBase
             location.City,
             location.Description,
             location.Latitude,
-            location.Longitude);
+            location.Longitude,
+            location.NarrationRadiusMeters);
 }

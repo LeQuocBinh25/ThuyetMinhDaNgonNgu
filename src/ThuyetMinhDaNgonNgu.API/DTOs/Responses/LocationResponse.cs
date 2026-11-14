@@ -7,4 +7,5 @@ public sealed record LocationResponse(
     string City,
     string Description,
     double? Latitude,
-    double? Longitude);
+    double? Longitude,
+    int NarrationRadiusMeters);
