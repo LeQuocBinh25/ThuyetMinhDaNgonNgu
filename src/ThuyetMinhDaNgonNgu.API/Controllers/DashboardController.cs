@@ -5,11 +5,12 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace ThuyetMinhDaNgonNgu.API.Controllers;
-
+//Khai báo Controller
 [ApiController]
 [Route("api/dashboard")]
 public class DashboardController : ControllerBase
 {
+    //Khai báo các biến và Constructor
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
 
@@ -20,7 +21,7 @@ public class DashboardController : ControllerBase
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
     }
-
+//phương thức thực hiện toàn bộ chức năng thống kê
     [HttpGet("analytics")]
     public async Task<IActionResult> GetAnalytics()
     {
@@ -39,7 +40,7 @@ public class DashboardController : ControllerBase
         try
         {
             var client = _httpClientFactory.CreateClient();
-
+//Lấy dữ liệu lượt truy cập
             var visitors = await GetRows<VisitorRow>(
                 client,
                 supabaseUrl,
@@ -48,6 +49,7 @@ public class DashboardController : ControllerBase
                 "visitor_id,visit_count",
                 "order=visitor_id");
 
+//Lấy dữ liệu lượt nghe
             var listens = await GetRows<ListenRow>(
                 client,
                 supabaseUrl,
@@ -55,6 +57,7 @@ public class DashboardController : ControllerBase
                 "audio_listens",
                 "listen_id,location_name,language_code,listened_at,visitor_id");
 
+//Thống kê theo địa điểm
             var byLocation = listens
                 .GroupBy(x => string.IsNullOrWhiteSpace(x.LocationName)
                     ? "Chưa xác định"
@@ -66,7 +69,7 @@ public class DashboardController : ControllerBase
                 })
                 .OrderByDescending(x => x.totalListens)
                 .ToList();
-
+//Thống kê theo ngôn ngữ
             var byLanguage = listens
                 .GroupBy(x => string.IsNullOrWhiteSpace(x.LanguageCode)
                     ? "Chưa xác định"
@@ -98,13 +101,17 @@ public class DashboardController : ControllerBase
                 .OrderByDescending(x => x.totalListens)
                 .ToList();
 
+//Trả kết quả thống kê
             return Ok(new
             {
+                //Tổng lượt truy cập
                 totalVisits = visitors.Sum(x => x.VisitCount ?? 0L),
+                //Tổng lượt nghe
                 totalListens = listens.Count,
                 byLocation,
                 byLanguage,
                 byLocationAndLanguage,
+                //Đếm người nghe duy nhất
                 uniqueListeners = listens
                 .Where(x => x.VisitorId != null)
                 .Select(x => x.VisitorId)
@@ -137,6 +144,7 @@ public class DashboardController : ControllerBase
         string? filter = null)
     {
         var result = new List<T>();
+        //Mỗi lần truy vấn 1.000 bản ghi
         const int pageSize = 1000;
         var offset = 0;
 

@@ -10,7 +10,7 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
     public class VisitorActivityController : ControllerBase
     {
         // Quá ngưỡng này không có heartbeat thì coi như đã rời đi.
-        private const int ActiveWindowSeconds = 30;
+        private const int ActiveWindowSeconds = 30;//thống gửi heartbeat mỗi 20 giây. Ngưỡng 30 giây tạo khoảng dự phòng để tránh người dùng bị đánh dấu không hoạt động ngay khi heartbeat bị trễ một chút.
 
         private readonly HttpClient _http;
         private readonly IConfiguration _config;
@@ -22,6 +22,9 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
             _http = factory.CreateClient();
             _config = config;
         }
+
+//Hàm này dùng để tạo HTTP request đến Supabase.
+//Thay vì mỗi API phải tự viết lại URL, Header và nội dung JSON, bạn tạo một hàm dùng chung
 
         private HttpRequestMessage CreateRequest(
             HttpMethod method,
@@ -158,6 +161,7 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                 is_active = false
             });
 
+//Tìm những người đã quá hạn
             using (var expireRequest = CreateRequest(
                 HttpMethod.Patch,
                 $"visitor_tracking?is_active=eq.true&last_seen=lt.{cutoff}",
@@ -177,7 +181,8 @@ namespace ThuyetMinhDaNgonNgu.API.Controllers
                         "Không cập nhật được trạng thái.");
                 }
             }
-
+            
+//Lấy danh sách người truy cập
             using var request = CreateRequest(
                 HttpMethod.Get,
                 "visitor_tracking?select=visitor_id,is_active" +

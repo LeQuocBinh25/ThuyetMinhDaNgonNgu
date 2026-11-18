@@ -1,4 +1,4 @@
-
+//quy định Service phải có chức năng thêm địa điểm
 using ThuyetMinhDaNgonNgu.BLL.Models;
 
 namespace ThuyetMinhDaNgonNgu.BLL.Interfaces;

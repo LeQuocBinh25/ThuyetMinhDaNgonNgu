@@ -28,6 +28,7 @@ public sealed class LocationService : ILocationService
         CancellationToken cancellationToken = default) =>
         _repository.GetByIdAsync(id, cancellationToken);
 
+
     public Task<TouristLocation> AddAsync(
         string name,
         string city,
@@ -38,8 +39,8 @@ public sealed class LocationService : ILocationService
     {
         ValidateLocation(name, city, description, latitude, longitude);
 
-        return _repository.AddAsync(
-            name.Trim(),
+        return _repository.AddAsync( //Chuyển yêu cầu thêm địa điểm xuống Repository
+            name.Trim(), //loại bỏ khoảng trắng ở đầu cuối
             city.Trim(),
             description?.Trim() ?? string.Empty,
             latitude,

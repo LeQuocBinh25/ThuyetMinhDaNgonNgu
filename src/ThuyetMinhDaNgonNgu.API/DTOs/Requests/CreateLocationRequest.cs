@@ -1,3 +1,4 @@
+//Nhận dữ liệu gửi lên API
 using System.ComponentModel.DataAnnotations;
 
 namespace ThuyetMinhDaNgonNgu.API.DTOs.Requests;
