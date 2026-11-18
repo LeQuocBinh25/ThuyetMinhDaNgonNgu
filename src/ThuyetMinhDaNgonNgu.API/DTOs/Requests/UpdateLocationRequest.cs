@@ -19,4 +19,7 @@ public sealed record UpdateLocationRequest
 
     [Range(-180, 180)]
     public double? Longitude { get; init; }
+
+    [Range(10, 2000)]
+    public int NarrationRadiusMeters { get; init; } = 50;
 }

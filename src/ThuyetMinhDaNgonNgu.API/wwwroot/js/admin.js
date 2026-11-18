@@ -106,7 +106,7 @@ function renderLocations() {
         const name = document.createElement("strong");
         name.textContent = item.name;
         const city = document.createElement("small");
-        city.textContent = item.city || "";
+        city.textContent = `${item.city || ""} · Bán kính: ${item.narrationRadiusMeters ?? 50} m`;
         details.append(name, city);
 
         const actions = document.createElement("div");
@@ -143,6 +143,7 @@ function confirmAction(message, title = "Xác nhận thao tác") {
 function resetLocationForm() {
     $("locationForm").reset();
     $("locationId").value = "";
+    $("locationRadius").value = "50";
     $("saveLocationBtn").textContent = "Thêm địa điểm";
     $("cancelLocationEditBtn").hidden = true;
 }
@@ -273,7 +274,8 @@ $("locationForm").addEventListener("submit", async (event) => {
         city: $("locationCity").value.trim(),
         description: $("locationDescription").value.trim(),
         latitude,
-        longitude
+        longitude,
+        narrationRadiusMeters: Number($("locationRadius").value || 50)
     };
 
     try {
@@ -309,6 +311,7 @@ $("locationList").addEventListener("click", async (event) => {
         $("locationDescription").value = location.description || "";
         $("locationLatitude").value = location.latitude ?? "";
         $("locationLongitude").value = location.longitude ?? "";
+        $("locationRadius").value = location.narrationRadiusMeters ?? 50;
         $("saveLocationBtn").textContent = "Lưu thay đổi";
         $("cancelLocationEditBtn").hidden = false;
         $("locationForm").scrollIntoView({ behavior: "smooth", block: "center" });

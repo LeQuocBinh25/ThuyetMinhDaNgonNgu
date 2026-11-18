@@ -102,12 +102,16 @@
       </p>
 
       <div id="exploreMap"></div>
+      <p class="map-legend"><span aria-hidden="true"></span> Vùng màu xanh: phạm vi tự động phát thuyết minh của địa điểm.</p>
 
       <div class="gps-controls">
+        <button id="startJourneyButton" class="gps-button" type="button">
+          <span aria-hidden="true">▶</span> Bắt đầu hành trình tự động
+        </button>
         <button id="findNearbyButton" class="gps-button" type="button">
           <span aria-hidden="true">⌖</span> Tìm địa điểm gần tôi
         </button>
-        <p class="gps-help">VietGuide chỉ lấy vị trí khi bạn nhấn nút và cho phép trình duyệt truy cập vị trí.</p>
+        <p class="gps-help">Nhấn “Bắt đầu hành trình” và cho phép GPS. VietGuide sẽ theo dõi vị trí trong lúc bạn khám phá; khi vào vùng màu xanh, bài thuyết minh sẽ tự phát nếu trình duyệt cho phép.</p>
       </div>
       <p id="mapMessage" role="status" aria-live="polite">Nhấn vào ghim trên bản đồ để chọn địa điểm, hoặc dùng GPS để
         tìm địa điểm gần bạn.</p>

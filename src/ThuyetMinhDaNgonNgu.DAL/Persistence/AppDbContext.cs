@@ -29,6 +29,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(location => location.Description).IsRequired().HasMaxLength(4000);
             entity.Property(location => location.Latitude).HasPrecision(9, 6);
             entity.Property(location => location.Longitude).HasPrecision(9, 6);
+            entity.Property(location => location.NarrationRadiusMeters).IsRequired().HasDefaultValue(50);
         });
 
         modelBuilder.Entity<LanguageEntity>(entity =>

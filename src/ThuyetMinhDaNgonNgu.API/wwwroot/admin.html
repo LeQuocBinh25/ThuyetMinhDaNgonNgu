@@ -43,6 +43,9 @@
           <input id="locationLatitude" type="number" min="-90" max="90" step="any">
           <label for="locationLongitude">Kinh độ</label>
           <input id="locationLongitude" type="number" min="-180" max="180" step="any">
+          <label for="locationRadius">Bán kính tự động thuyết minh (mét)</label>
+          <input id="locationRadius" type="number" min="10" max="2000" step="1" value="50" required>
+          <small>Cho phép từ 10 đến 2.000 mét. Mặc định 50 mét.</small>
           <div class="actions">
             <button id="saveLocationBtn" type="submit">Thêm địa điểm</button>
             <button id="cancelLocationEditBtn" type="button" class="outline" hidden>Hủy sửa</button>

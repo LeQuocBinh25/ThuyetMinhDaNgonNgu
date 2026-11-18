@@ -6,4 +6,5 @@ public sealed record TouristLocation(
     string City,
     string Description,
     double? Latitude,
-    double? Longitude);
+    double? Longitude,
+    int NarrationRadiusMeters = 50);

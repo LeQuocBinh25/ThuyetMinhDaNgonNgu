@@ -166,3 +166,7 @@
     z-index: 1001;
   }
 }
+
+
+.map-legend { display: flex; align-items: center; gap: 9px; margin: 10px 0 0; color: #78847d; font-size: 12px; line-height: 1.5; }
+.map-legend span { display: inline-block; width: 16px; height: 16px; flex: 0 0 16px; border: 2px solid #16865b; border-radius: 50%; background: rgba(39, 174, 112, .16); }

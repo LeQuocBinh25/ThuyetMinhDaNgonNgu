@@ -35,9 +35,10 @@ public sealed class LocationService : ILocationService
         string description,
         double? latitude,
         double? longitude,
+        int narrationRadiusMeters = 50,
         CancellationToken cancellationToken = default)
     {
-        ValidateLocation(name, city, description, latitude, longitude);
+        ValidateLocation(name, city, description, latitude, longitude, narrationRadiusMeters);
 
         return _repository.AddAsync( //Chuyển yêu cầu thêm địa điểm xuống Repository
             name.Trim(), //loại bỏ khoảng trắng ở đầu cuối
@@ -45,6 +46,7 @@ public sealed class LocationService : ILocationService
             description?.Trim() ?? string.Empty,
             latitude,
             longitude,
+            narrationRadiusMeters,
             cancellationToken);
     }
 
@@ -55,9 +57,10 @@ public sealed class LocationService : ILocationService
         string description,
         double? latitude,
         double? longitude,
+        int narrationRadiusMeters = 50,
         CancellationToken cancellationToken = default)
     {
-        ValidateLocation(name, city, description, latitude, longitude);
+        ValidateLocation(name, city, description, latitude, longitude, narrationRadiusMeters);
         if (id <= 0)
         {
             throw new ArgumentException("Mã địa điểm phải là số nguyên dương.", nameof(id));
@@ -70,6 +73,7 @@ public sealed class LocationService : ILocationService
             description?.Trim() ?? string.Empty,
             latitude,
             longitude,
+            narrationRadiusMeters,
             cancellationToken);
     }
 
@@ -121,7 +125,8 @@ public sealed class LocationService : ILocationService
         string city,
         string description,
         double? latitude,
-        double? longitude)
+        double? longitude,
+        int narrationRadiusMeters)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Tên địa điểm không được để trống.", nameof(name));
@@ -137,6 +142,9 @@ public sealed class LocationService : ILocationService
 
         if (description.Length > 4000)
             throw new ArgumentException("Mô tả địa điểm không được vượt quá 4000 ký tự.", nameof(description));
+
+        if (narrationRadiusMeters is < 10 or > 2000)
+            throw new ArgumentException("Bán kính thuyết minh phải từ 10 đến 2000 mét.", nameof(narrationRadiusMeters));
 
         if (latitude is < -90 or > 90 || longitude is < -180 or > 180)
             throw new ArgumentException("Tọa độ địa lý không hợp lệ.");

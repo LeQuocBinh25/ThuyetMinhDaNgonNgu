@@ -23,6 +23,7 @@ const audioPlayer = document.getElementById("audioPlayer");
 const exploreMap = document.getElementById("exploreMap");
 const mapMessage = document.getElementById("mapMessage");
 const findNearbyButton = document.getElementById("findNearbyButton");
+const startJourneyButton = document.getElementById("startJourneyButton");
 const placesList = document.getElementById("placesList");
 const placesPlaybackStatus = document.getElementById("placesPlaybackStatus");
 const placesLanguageSelect = document.getElementById("placesLanguageSelect");
@@ -39,11 +40,17 @@ let activeSiteLanguage = "vi";
 let currentNarration = null;
 let vietGuideMap = null;
 let vietGuideMarkers = [];
+let vietGuideRadiusCircles = [];
 let featuredMarkers = [];
 let userLocationMarker = null;
 let hasCenteredOnUserLocation = false;
 let narrationRequestVersion = 0;
-const NEARBY_RADIUS_METERS = 50;
+const DEFAULT_NEARBY_RADIUS_METERS = 50;
+
+function getLocationRadius(location) {
+  const value = Number(getFirstValue(location, ["narrationRadiusMeters", "NarrationRadiusMeters"], DEFAULT_NEARBY_RADIUS_METERS));
+  return Number.isFinite(value) && value >= 10 ? value : DEFAULT_NEARBY_RADIUS_METERS;
+}
 const featuredPlaces = [];
 
 // ======================================================
@@ -584,12 +591,6 @@ async function loadLocations() {
   placesLoaded = true;
   placesLoadFailed = false;
 
-  console.table(
-    locations.map((location) => ({
-      name: getLocationName(location),
-      coordinates: JSON.stringify(getLocationCoordinates(location)),
-    }))
-  );
   fillLocationOptions();
   renderPlacesList();
   refreshVietGuideMap();
@@ -650,16 +651,16 @@ async function loadOptions() {
     hideError();
   }
 
-  // Luôn cập nhật bản đồ, kể cả khi API không tải được.
-  refreshVietGuideMap();
+  // loadLocations() cập nhật bản đồ ngay khi dữ liệu địa điểm tải thành công.
+  // Không render lại lần thứ hai ở đây để tránh tạo/xóa marker dư thừa.
+  if (locationResult.status === "rejected") refreshVietGuideMap();
 }
 async function initApp() {
   initVietGuideMap();
   await loadOptions();
 
-  // Tự động xin quyền xác định vị trí khi mở trang.
-  // Tự động theo dõi GPS và phát thuyết minh khi đến gần.
-  startAutomaticNearbyNarration();
+  // Chờ khách nhấn “Bắt đầu hành trình” để xin quyền GPS và kích hoạt trải nghiệm audio.
+  // Sau thao tác này, GPS được theo dõi liên tục và narration tự phát khi vào vùng.
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
@@ -1104,17 +1105,18 @@ async function findNearbyLocation() {
         ? `${Math.round(nearest.distance)} m`
         : `${(nearest.distance / 1000).toFixed(2)} km`;
 
-    if (nearest.distance <= NEARBY_RADIUS_METERS) {
+    const nearestRadius = getLocationRadius(nearest.location);
+    if (nearest.distance <= nearestRadius) {
       currentNearbyLocation = nearest.location;
       selectVietGuideLocation(nearest.location);
 
       setMapMessage(
-        `Bạn đang cách ${getLocationName(nearest.location)} khoảng ${distanceText}, trong phạm vi ${NEARBY_RADIUS_METERS} m.`
+        `Bạn đang cách ${getLocationName(nearest.location)} khoảng ${distanceText}, trong phạm vi ${nearestRadius} m.`
       );
       await autoPlayNearbyNarration(nearest.location, { force: true });
     } else {
       setMapMessage(
-        `Địa điểm gần nhất là ${getLocationName(nearest.location)}, cách bạn khoảng ${distanceText}; ngoài phạm vi ${NEARBY_RADIUS_METERS} m. Bạn có thể chọn địa điểm gần nhất trên bản đồ hoặc trong danh sách.`
+        `Địa điểm gần nhất là ${getLocationName(nearest.location)}, cách bạn khoảng ${distanceText}; ngoài phạm vi ${nearestRadius} m. Bạn có thể chọn địa điểm gần nhất trên bản đồ hoặc trong danh sách.`
       );
 
       if (vietGuideMap) {
@@ -1309,6 +1311,7 @@ async function autoPlayNearbyNarration(
 }
 
 function startAutomaticNearbyNarration() {
+  if (gpsWatchId !== null) return;
   if (!("geolocation" in navigator)) {
     setMapMessage("Trình duyệt không hỗ trợ GPS.");
     return;
@@ -1345,43 +1348,57 @@ function startAutomaticNearbyNarration() {
         .filter(Boolean)
         .sort((a, b) => a.distance - b.distance);
 
-      const nearest = nearby[0];
+      const eligible = nearby.find((item) => item.distance <= getLocationRadius(item.location));
+      const nearest = eligible || nearby[0];
 
-      if (!nearest || nearest.distance > NEARBY_RADIUS_METERS) {
+      if (!eligible) {
         currentNearbyLocation = null;
-        // Reset only after moving clearly outside the 50 m zone. A small
-        // 25 m buffer prevents GPS jitter around the boundary from replaying audio.
-        if (!nearest || nearest.distance > NEARBY_RADIUS_METERS + 25) {
+        // Hysteresis 25 m avoids replaying audio due to GPS drift at the edge.
+        const previousLocation = locations.find((item) => autoNarrationKey.startsWith(`${getLocationId(item)}_`));
+        const previousCoordinates = previousLocation ? getLocationCoordinates(previousLocation) : null;
+        const distanceFromPrevious = previousCoordinates
+          ? calculateDistanceMeters(userLat, userLon, previousCoordinates[0], previousCoordinates[1])
+          : Number.POSITIVE_INFINITY;
+        if (!previousLocation || distanceFromPrevious > getLocationRadius(previousLocation) + 25) {
           autoNarrationKey = "";
         }
-
-        setMapMessage(
-          `Đang tìm địa điểm trong phạm vi ${NEARBY_RADIUS_METERS} m...`
-        );
+        setMapMessage(`Đang tìm địa điểm trong vùng bán kính riêng (mặc định ${DEFAULT_NEARBY_RADIUS_METERS} m)...`);
         return;
       }
 
-      currentNearbyLocation = nearest.location;
-      autoPlayNearbyNarration(nearest.location);
+      currentNearbyLocation = eligible.location;
+      autoPlayNearbyNarration(eligible.location);
     },
     (error) => {
       console.error("Không lấy được GPS:", error);
 
+      if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
+      gpsWatchId = null;
+      if (startJourneyButton) {
+        startJourneyButton.disabled = false;
+        startJourneyButton.textContent = "Thử bật GPS lại";
+      }
       setMapMessage(
         "Không thể xác định vị trí. Hãy cấp quyền GPS cho trình duyệt."
       );
     },
     {
       enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 0,
+      timeout: 20000,
+      maximumAge: 5000,
     }
   );
 }
 
 // Đăng ký sự kiện một lần, bên ngoài hàm findNearbyLocation().
-if (findNearbyButton) {
-  findNearbyButton.addEventListener("click", findNearbyLocation);
+if (findNearbyButton) findNearbyButton.addEventListener("click", findNearbyLocation);
+if (startJourneyButton) {
+  startJourneyButton.addEventListener("click", () => {
+    startAutomaticNearbyNarration();
+    startJourneyButton.disabled = true;
+    startJourneyButton.innerHTML = '<span aria-hidden="true">✓</span> Đang theo dõi hành trình';
+    setMapMessage("Đang theo dõi GPS. Khi bạn bước vào vùng bán kính màu xanh, VietGuide sẽ tải và phát thuyết minh.");
+  });
 }
 
 function initVietGuideMap() {
@@ -1398,6 +1415,7 @@ function initVietGuideMap() {
   if (vietGuideMap) return;
 
   vietGuideMap = L.map(exploreMap, {
+    preferCanvas: true,
     center: [16.0, 107.5],
     zoom: 5,
     minZoom: 4,
@@ -1413,6 +1431,9 @@ function initVietGuideMap() {
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
+    updateWhenIdle: true,
+    updateWhenZooming: false,
+    keepBuffer: 2,
   }).addTo(vietGuideMap);
 
   addFeaturedPlaces();
@@ -1580,16 +1601,27 @@ function refreshVietGuideMap() {
   }
 
   // Chỉ xóa ghim từ API, không xóa 9 ghim cố định.
-  vietGuideMarkers.forEach((marker) => {
-    vietGuideMap.removeLayer(marker);
-  });
-
+  vietGuideMarkers.forEach((marker) => vietGuideMap.removeLayer(marker));
+  vietGuideRadiusCircles.forEach((circle) => vietGuideMap.removeLayer(circle));
   vietGuideMarkers = [];
+  vietGuideRadiusCircles = [];
 
   locations.forEach((location) => {
     const coordinates = getLocationCoordinates(location);
 
     if (!coordinates) return;
+
+    const radius = getLocationRadius(location);
+    const radiusCircle = L.circle(coordinates, {
+      radius,
+      color: "#16865b",
+      weight: 2,
+      opacity: 0.8,
+      fillColor: "#27ae70",
+      fillOpacity: 0.12,
+      interactive: false,
+    }).addTo(vietGuideMap);
+    vietGuideRadiusCircles.push(radiusCircle);
 
     const marker = L.marker(coordinates).addTo(vietGuideMap);
 
@@ -1598,6 +1630,9 @@ function refreshVietGuideMap() {
     const title = document.createElement("strong");
     title.textContent = getLocationName(location);
     popup.appendChild(title);
+    const radiusInfo = document.createElement("p");
+    radiusInfo.textContent = `Vùng tự động thuyết minh: ${radius} m`;
+    popup.appendChild(radiusInfo);
 
     const button = document.createElement("button");
     button.type = "button";
@@ -1624,7 +1659,7 @@ function refreshVietGuideMap() {
 
   const withoutCoordinates = locations.length - vietGuideMarkers.length;
   setMapMessage(
-    `Bản đồ hiển thị ${vietGuideMarkers.length} địa điểm có tọa độ trong dữ liệu hệ thống.` +
+    `Bản đồ hiển thị ${vietGuideMarkers.length} địa điểm và vùng thuyết minh bán kính riêng.` +
     (withoutCoordinates > 0
       ? ` ${withoutCoordinates} địa điểm chưa có tọa độ nên chỉ có trong danh sách.`
       : ""),

@@ -35,7 +35,8 @@ public sealed class LocationsController : ControllerBase
                 location.City,
                 location.Description,
                 location.Latitude,
-                location.Longitude))
+                location.Longitude,
+                location.NarrationRadiusMeters))
             .ToArray();
 
         return Ok(response);
@@ -61,7 +62,8 @@ public sealed class LocationsController : ControllerBase
             location.City,
             location.Description,
             location.Latitude,
-            location.Longitude));
+            location.Longitude,
+            location.NarrationRadiusMeters));
     }
     
     [HttpPost]
@@ -80,6 +82,7 @@ public sealed class LocationsController : ControllerBase
                 request.Description,
                 request.Latitude,
                 request.Longitude,
+                request.NarrationRadiusMeters,
                 cancellationToken);
 
             return CreatedAtAction(
@@ -113,6 +116,7 @@ public sealed class LocationsController : ControllerBase
                 request.Description,
                 request.Latitude,
                 request.Longitude,
+                request.NarrationRadiusMeters,
                 cancellationToken);
 
             return location is null
@@ -172,5 +176,6 @@ public sealed class LocationsController : ControllerBase
             location.City,
             location.Description,
             location.Latitude,
-            location.Longitude);
+            location.Longitude,
+            location.NarrationRadiusMeters);
 }
