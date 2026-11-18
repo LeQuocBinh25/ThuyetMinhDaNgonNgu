@@ -1,0 +1,95 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - test
+  pull_request:
+    branches:
+      - main
+      - master
+      - test
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  API_PROJECT: "src/ThuyetMinhDaNgonNgu.API/ThuyetMinhDaNgonNgu.API.csproj"
+  SOLUTION: "ThuyetMinhDaNgonNgu.sln"
+
+jobs:
+  build:
+    name: Restore, build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore "${{ env.SOLUTION }}"
+
+      - name: Build
+        run: dotnet build "${{ env.SOLUTION }}" --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test "${{ env.SOLUTION }}" --configuration Release --no-build --no-restore
+
+      - name: Publish API
+        run: dotnet publish "${{ env.API_PROJECT }}" --configuration Release --no-build --no-restore --output ./publish
+
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v4
+        with:
+          name: vietguide-api
+          path: ./publish
+          if-no-files-found: error
+          retention-days: 14
+
+  deploy:
+    name: Deploy to Azure App Service
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    environment:
+      name: production
+      url: ${{ secrets.AZURE_WEBAPP_URL }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: vietguide-api
+          path: ./publish
+
+      - name: Check deployment configuration
+        id: deployment-config
+        env:
+          AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
+          AZURE_WEBAPP_PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        run: |
+          if [ -n "$AZURE_WEBAPP_NAME" ] && [ -n "$AZURE_WEBAPP_PUBLISH_PROFILE" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "CD skipped: configure AZURE_WEBAPP_NAME and AZURE_WEBAPP_PUBLISH_PROFILE."
+          fi
+
+      - name: Deploy
+        if: steps.deployment-config.outputs.configured == 'true'
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ./publish
