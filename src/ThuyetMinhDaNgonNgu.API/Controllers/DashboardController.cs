@@ -57,6 +57,30 @@ public class DashboardController : ControllerBase
                 "audio_listens",
                 "listen_id,location_name,language_code,listened_at,visitor_id");
 
+            // Lấy các lượt truy cập trong 5 giờ gần nhất.
+            var now = DateTimeOffset.UtcNow;
+            var fiveHoursAgo = now.AddHours(-5);
+            var visitLogs = await GetRows<VisitLogRow>(
+                client,
+                supabaseUrl,
+                serviceRoleKey,
+                "visitor_visit_logs",
+                "visitor_id,visited_at",
+                $"visited_at=gte.{Uri.EscapeDataString(fiveHoursAgo.ToString("o"))}&order=visited_at.asc");
+
+            var visitsByHour = Enumerable.Range(0, 5)
+                .Select(i =>
+                {
+                    var hourStart = now.AddHours(-5 + i);
+                    var hourEnd = hourStart.AddHours(1);
+                    return new
+                    {
+                        hour = hourStart.ToOffset(TimeSpan.FromHours(7)).ToString("HH:mm") + " - " + hourEnd.ToOffset(TimeSpan.FromHours(7)).ToString("HH:mm"),
+                        totalVisits = visitLogs.Count(x => x.VisitedAt >= hourStart && x.VisitedAt < hourEnd)
+                    };
+                })
+                .ToList();
+
 //Thống kê theo địa điểm
             var byLocation = listens
                 .GroupBy(x => string.IsNullOrWhiteSpace(x.LocationName)
@@ -106,6 +130,8 @@ public class DashboardController : ControllerBase
             {
                 //Tổng lượt truy cập
                 totalVisits = visitors.Sum(x => x.VisitCount ?? 0L),
+                totalVisitsLast5Hours = visitLogs.Count,
+                visitsByHour,
                 //Tổng lượt nghe
                 totalListens = listens.Count,
                 byLocation,
@@ -200,6 +226,15 @@ public class DashboardController : ControllerBase
 
         [JsonPropertyName("visit_count")]
         public long? VisitCount { get; set; }
+    }
+
+    public sealed class VisitLogRow
+    {
+        [JsonPropertyName("visitor_id")]
+        public Guid VisitorId { get; set; }
+
+        [JsonPropertyName("visited_at")]
+        public DateTimeOffset VisitedAt { get; set; }
     }
 
     public sealed class ListenRow

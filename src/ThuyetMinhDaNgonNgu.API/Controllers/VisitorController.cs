@@ -42,6 +42,12 @@ public sealed class VisitorController : ControllerBase
                 is_active = TRUE    --thay đổi trạng thái hoạt động
             """, cancellationToken);
 
+        // Lưu từng lượt truy cập để Dashboard có thể thống kê theo khoảng thời gian.
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO public.visitor_visit_logs (visitor_id, visited_at)
+            VALUES ({request.VisitorId}, {DateTimeOffset.UtcNow})
+            """, cancellationToken);
+
         return Ok(new
         {
             message = "Đã ghi nhận lượt truy cập."
