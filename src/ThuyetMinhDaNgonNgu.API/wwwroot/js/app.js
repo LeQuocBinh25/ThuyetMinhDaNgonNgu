@@ -1000,6 +1000,8 @@ function updateUserLocationOnMap(latitude, longitude, centerMap = false) {
       .bindPopup("Vị trí hiện tại của bạn");
   } else {
     userLocationMarker.setLatLng([latitude, longitude]);
+    // Cập nhật màu các POI theo vị trí GPS mới
+updateNearbyPOIMarkers(latitude, longitude);
   }
 
   // Chỉ tự căn bản đồ ở lần định vị đầu tiên để không cản người dùng kéo bản đồ.
@@ -1590,7 +1592,28 @@ function addFeaturedPlaces() {
     featuredMarkers.push(marker);
   });
 }
+// Bán kính để xác định POI ở gần người dùng
+const NEARBY_MARKER_RADIUS = 100;
 
+// Marker mặc định
+const defaultPOIIcon = new L.Icon.Default();
+
+// Marker màu xanh
+const greenPOIIcon = L.divIcon({
+    className: "green-poi-marker",
+    html: `
+        <div style="
+            width: 24px;
+            height: 24px;
+            background: #16865b;
+            border: 3px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+        "></div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+});
 function refreshVietGuideMap() {
   if (!vietGuideMap) {
     initVietGuideMap();
@@ -1623,7 +1646,10 @@ function refreshVietGuideMap() {
     }).addTo(vietGuideMap);
     vietGuideRadiusCircles.push(radiusCircle);
 
-    const marker = L.marker(coordinates).addTo(vietGuideMap);
+    const marker = L.marker(coordinates, {
+    icon: defaultPOIIcon
+}).addTo(vietGuideMap);
+
 
     const popup = document.createElement("div");
 
@@ -1648,7 +1674,10 @@ function refreshVietGuideMap() {
     popup.appendChild(button);
     marker.bindPopup(popup);
 
-    vietGuideMarkers.push(marker);
+    vietGuideMarkers.push({
+    marker: marker,
+    location: location
+});
   });
 
   requestAnimationFrame(() => {
@@ -1665,7 +1694,38 @@ function refreshVietGuideMap() {
       : ""),
   );
 }
+function updateNearbyPOIMarkers(userLat, userLon) {
 
+    vietGuideMarkers.forEach((item) => {
+
+        const marker = item.marker;
+        const location = item.location;
+
+        const coordinates = getLocationCoordinates(location);
+
+        if (!coordinates) return;
+
+        // Tính khoảng cách từ người dùng đến POI
+        const distance = calculateDistanceMeters(
+            userLat,
+            userLon,
+            coordinates[0],
+            coordinates[1]
+        );
+
+        // Kiểm tra POI có nằm trong 100m không
+        if (distance <= NEARBY_MARKER_RADIUS) {
+
+            marker.setIcon(greenPOIIcon);
+
+        } else {
+
+            marker.setIcon(defaultPOIIcon);
+
+        }
+
+    });
+}
 // ======================================================
 // 8. KHOI CHAY UNG DUNG
 // ======================================================
