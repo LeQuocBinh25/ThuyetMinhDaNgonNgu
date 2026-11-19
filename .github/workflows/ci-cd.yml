@@ -1,95 +1,123 @@
+# Tên workflow hiển thị trên GitHub Actions
 name: CI/CD
 
+# Các sự kiện kích hoạt workflow
 on:
+  # Chạy khi có code được push lên các nhánh
   push:
     branches:
       - main
       - master
       - test
+
+  # Chạy khi có Pull Request vào các nhánh
   pull_request:
     branches:
       - main
       - master
       - test
+
+  # Cho phép chạy workflow thủ công trên GitHub
   workflow_dispatch:
 
+# Quyền mặc định của workflow
 permissions:
-  contents: read
+  contents: read # Chỉ cho phép đọc nội dung repository
 
+# Các biến môi trường dùng chung
 env:
-  DOTNET_VERSION: "10.0.x"
-  API_PROJECT: "src/ThuyetMinhDaNgonNgu.API/ThuyetMinhDaNgonNgu.API.csproj"
-  SOLUTION: "ThuyetMinhDaNgonNgu.sln"
+  DOTNET_VERSION: "10.0.x" # Phiên bản .NET sử dụng
+  API_PROJECT: "src/ThuyetMinhDaNgonNgu.API/ThuyetMinhDaNgonNgu.API.csproj" # Đường dẫn project API
+  SOLUTION: "ThuyetMinhDaNgonNgu.sln" # Đường dẫn file Solution
 
 jobs:
+  # JOB 1: Kiểm tra và đóng gói ứng dụng
   build:
     name: Restore, build and test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # Chạy trên máy ảo Ubuntu
 
     steps:
+      # Lấy source code từ GitHub về máy ảo
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Cài đặt phiên bản .NET được chỉ định
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      # Khôi phục các thư viện và package cần thiết
       - name: Restore
         run: dotnet restore "${{ env.SOLUTION }}"
 
+      # Biên dịch toàn bộ Solution ở chế độ Release
       - name: Build
         run: dotnet build "${{ env.SOLUTION }}" --configuration Release --no-restore
 
+      # Chạy các bài kiểm thử của Solution
       - name: Test
         run: dotnet test "${{ env.SOLUTION }}" --configuration Release --no-build --no-restore
 
+      # Đóng gói project API để chuẩn bị triển khai
       - name: Publish API
         run: dotnet publish "${{ env.API_PROJECT }}" --configuration Release --no-build --no-restore --output ./publish
 
+      # Lưu file đã publish thành artifact để JOB deploy sử dụng
       - name: Upload deployment package
         uses: actions/upload-artifact@v4
         with:
-          name: vietguide-api
-          path: ./publish
-          if-no-files-found: error
-          retention-days: 14
+          name: vietguide-api # Tên gói triển khai
+          path: ./publish # Thư mục chứa ứng dụng đã publish
+          if-no-files-found: error # Báo lỗi nếu không tìm thấy file
+          retention-days: 14 # Lưu artifact trong 14 ngày
 
+  # JOB 2: Triển khai ứng dụng lên Azure App Service
   deploy:
     name: Deploy to Azure App Service
-    needs: build
+    needs: build # Chỉ chạy khi JOB build thành công
     runs-on: ubuntu-latest
+
+    # Chỉ deploy khi push lên nhánh main hoặc master
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    # Môi trường triển khai production
     environment:
       name: production
       url: ${{ secrets.AZURE_WEBAPP_URL }}
+
     permissions:
       contents: read
 
     steps:
+      # Tải gói ứng dụng từ JOB build
       - name: Download deployment package
         uses: actions/download-artifact@v4
         with:
           name: vietguide-api
           path: ./publish
 
+      # Kiểm tra đã cấu hình thông tin Azure trong GitHub Secrets chưa
       - name: Check deployment configuration
         id: deployment-config
         env:
           AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
           AZURE_WEBAPP_PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         run: |
+          # Nếu có đủ tên ứng dụng và publish profile
           if [ -n "$AZURE_WEBAPP_NAME" ] && [ -n "$AZURE_WEBAPP_PUBLISH_PROFILE" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
+            # Nếu thiếu cấu hình thì bỏ qua bước deploy
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "CD skipped: configure AZURE_WEBAPP_NAME and AZURE_WEBAPP_PUBLISH_PROFILE."
           fi
 
+      # Triển khai ứng dụng lên Azure nếu đã cấu hình đầy đủ
       - name: Deploy
         if: steps.deployment-config.outputs.configured == 'true'
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: ./publish
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }} # Tên Azure Web App
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }} # Thông tin xác thực triển khai
+          package: ./publish # Thư mục ứng dụng cần triển khai
