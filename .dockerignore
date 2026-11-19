@@ -4,6 +4,6 @@
 **/bin
 **/obj
 **/*.user
-.env
 .env.*
+.env
 secrets.json
