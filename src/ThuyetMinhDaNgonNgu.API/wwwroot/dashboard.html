@@ -233,6 +233,11 @@ section.panel:has(#visitorRows) table {
       </div>
 
       <div class="card">
+        <div class="card-label">Lượt truy cập trong 5 giờ gần nhất</div>
+        <div class="number" id="totalVisitsLast5Hours">—</div>
+      </div>
+
+      <div class="card">
         <div class="card-label">Tổng lượt nghe</div>
         <div class="number" id="totalListens">—</div>
       </div>
@@ -248,6 +253,16 @@ section.panel:has(#visitorRows) table {
       </div>
     </section>
  <section class="panel">
+      <h2>Lượt truy cập theo từng giờ (5 giờ gần nhất)</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Khung giờ</th><th>Tổng lượt truy cập</th></tr></thead>
+          <tbody id="hourlyVisitRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
       <h2>Lượt nghe theo bài / địa điểm</h2>
       <div class="table-wrap">
         <table>
@@ -446,6 +461,14 @@ section.panel:has(#visitorRows) table {
         document.getElementById("totalListens").textContent =
           numberFormat.format(data.totalListens ?? 0);
 
+        document.getElementById("totalVisitsLast5Hours").textContent =
+          numberFormat.format(data.totalVisitsLast5Hours ?? 0);
+
+        renderRows("hourlyVisitRows", data.visitsByHour, [
+          { key: "hour" },
+          { key: "totalVisits", number: true },
+        ]);
+
         renderRows("locationRows", data.byLocation, [
           { key: "locationName" },
           { key: "totalListens", number: true },
@@ -482,8 +505,11 @@ section.panel:has(#visitorRows) table {
 
     loadDashboard();
 
-    // Tự cập nhật trạng thái người truy cập mỗi 20 giây.
+    // Tự cập nhật trạng thái người truy cập mỗi 2 giây.
     setInterval(loadVisitorActivity, 2000);
+
+    // Tự cập nhật số liệu thống kê mỗi 20 giây.
+    setInterval(loadDashboard, 20000);
   </script>
 </body>
 
