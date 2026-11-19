@@ -77,13 +77,13 @@ dotnet user-secrets set "Jwt:SigningKey" "<secret-key-it-nhat-32-byte>" --projec
 
 Các cấu hình tùy chọn trong `appsettings.json`:
 
-| Khóa | Mặc định | Ý nghĩa |
-|---|---|---|
-| `Gemini:Model` | `gemini-3.8-flash` | Model tạo nội dung thuyết minh |
-| `Gemini:TtsModel` | `gemini-2.5-flash-preview-tts` | Model tạo giọng nói |
-| `Supabase:AudioBucket` | `narration-audio` | Bucket chứa audio |
-| `Jwt:Issuer` | `VietGuide` | Issuer của JWT |
-| `Jwt:Audience` | `VietGuideAdmin` | Audience của JWT |
+| Khóa                   | Mặc định                       | Ý nghĩa                        |
+| ---------------------- | ------------------------------ | ------------------------------ |
+| `Gemini:Model`         | `gemini-3.8-flash`             | Model tạo nội dung thuyết minh |
+| `Gemini:TtsModel`      | `gemini-2.5-flash-preview-tts` | Model tạo giọng nói            |
+| `Supabase:AudioBucket` | `narration-audio`              | Bucket chứa audio              |
+| `Jwt:Issuer`           | `VietGuide`                    | Issuer của JWT                 |
+| `Jwt:Audience`         | `VietGuideAdmin`               | Audience của JWT               |
 
 Nên tạo bucket `narration-audio` ở chế độ `Private`.
 
@@ -132,28 +132,28 @@ Khi công bố lại, hệ thống tải audio mới lên Supabase và cập nh�
 
 ## API chính
 
-| Phương thức | Endpoint | Mô tả |
-|---|---|---|
-| `GET` | `/api/locations` | Danh sách địa điểm |
-| `GET` | `/api/locations/{id}` | Chi tiết địa điểm |
-| `POST` | `/api/locations` | Tạo địa điểm |
-| `PUT` | `/api/locations/{id}` | Cập nhật địa điểm |
-| `DELETE` | `/api/locations/{id}` | Xóa địa điểm và narration liên quan |
-| `GET` | `/api/languages` | Danh sách ngôn ngữ |
-| `POST` | `/api/languages` | Tạo ngôn ngữ |
-| `PUT` | `/api/languages/{code}` | Cập nhật tên ngôn ngữ |
-| `DELETE` | `/api/languages/{code}` | Xóa ngôn ngữ chưa được narration tham chiếu |
-| `GET` | `/api/narrations/{locationId}/{languageCode}` | Lấy thuyết minh hiện hành |
-| `POST` | `/api/admin/auth/login` | Đăng nhập quản trị và nhận JWT |
-| `GET` | `/api/admin/narrations` | Danh sách thuyết minh hiện hành |
-| `POST` | `/api/admin/narrations/draft` | Tạo nội dung nháp bằng AI |
-| `PUT` | `/api/admin/narrations/{locationId}/{languageCode}` | Tạo audio và công bố nội dung |
-| `DELETE` | `/api/admin/narrations/{locationId}/{languageCode}` | Xóa thuyết minh |
-| `POST` | `/api/visitor` | Ghi nhận lượt truy cập |
-| `POST` | `/api/visitor-activity/heartbeat` | Cập nhật visitor đang hoạt động |
-| `POST` | `/api/visitor-activity/leave` | Ghi nhận visitor rời trang |
-| `POST` | `/api/audio-listens` | Ghi nhận lượt nghe |
-| `GET` | `/api/dashboard/analytics` | Lấy dữ liệu thống kê |
+| Phương thức | Endpoint                                            | Mô tả                                       |
+| ----------- | --------------------------------------------------- | ------------------------------------------- |
+| `GET`       | `/api/locations`                                    | Danh sách địa điểm                          |
+| `GET`       | `/api/locations/{id}`                               | Chi tiết địa điểm                           |
+| `POST`      | `/api/locations`                                    | Tạo địa điểm                                |
+| `PUT`       | `/api/locations/{id}`                               | Cập nhật địa điểm                           |
+| `DELETE`    | `/api/locations/{id}`                               | Xóa địa điểm và narration liên quan         |
+| `GET`       | `/api/languages`                                    | Danh sách ngôn ngữ                          |
+| `POST`      | `/api/languages`                                    | Tạo ngôn ngữ                                |
+| `PUT`       | `/api/languages/{code}`                             | Cập nhật tên ngôn ngữ                       |
+| `DELETE`    | `/api/languages/{code}`                             | Xóa ngôn ngữ chưa được narration tham chiếu |
+| `GET`       | `/api/narrations/{locationId}/{languageCode}`       | Lấy thuyết minh hiện hành                   |
+| `POST`      | `/api/admin/auth/login`                             | Đăng nhập quản trị và nhận JWT              |
+| `GET`       | `/api/admin/narrations`                             | Danh sách thuyết minh hiện hành             |
+| `POST`      | `/api/admin/narrations/draft`                       | Tạo nội dung nháp bằng AI                   |
+| `PUT`       | `/api/admin/narrations/{locationId}/{languageCode}` | Tạo audio và công bố nội dung               |
+| `DELETE`    | `/api/admin/narrations/{locationId}/{languageCode}` | Xóa thuyết minh                             |
+| `POST`      | `/api/visitor`                                      | Ghi nhận lượt truy cập                      |
+| `POST`      | `/api/visitor-activity/heartbeat`                   | Cập nhật visitor đang hoạt động             |
+| `POST`      | `/api/visitor-activity/leave`                       | Ghi nhận visitor rời trang                  |
+| `POST`      | `/api/audio-listens`                                | Ghi nhận lượt nghe                          |
+| `GET`       | `/api/dashboard/analytics`                          | Lấy dữ liệu thống kê                        |
 
 Có thể dùng file `src/ThuyetMinhDaNgonNgu.API/ThuyetMinhDaNgonNgu.API.http` để thử các endpoint bằng Visual Studio hoặc VS Code.
 
@@ -208,10 +208,22 @@ AdminAuth__Password
 
 Để bật CD sang Azure App Service, thêm các GitHub repository secrets sau:
 
-| Secret | Nội dung |
-|---|---|
-| `AZURE_WEBAPP_NAME` | Tên Azure App Service |
-| `AZURE_WEBAPP_PUBLISH_PROFILE` | Nội dung publish profile của App Service |
-| `AZURE_WEBAPP_URL` | URL production để hiển thị trong GitHub Environment (không bắt buộc) |
+| Secret                         | Nội dung                                                             |
+| ------------------------------ | -------------------------------------------------------------------- |
+| `AZURE_WEBAPP_NAME`            | Tên Azure App Service                                                |
+| `AZURE_WEBAPP_PUBLISH_PROFILE` | Nội dung publish profile của App Service                             |
+| `AZURE_WEBAPP_URL`             | URL production để hiển thị trong GitHub Environment (không bắt buộc) |
 
 Cấu hình cùng các giá trị kết nối ở trên trong Azure App Settings bằng quy tắc kép gạch dưới cho ASP.NET Core, ví dụ `ConnectionStrings__DefaultConnection`.
+
+## Kiến trúc hệ thống
+
+Hệ thống sử dụng kiến trúc 3 lớp:
+
+- **API:** Tiếp nhận yêu cầu và trả kết quả cho giao diện.
+- **BLL:** Xử lý nghiệp vụ và kiểm tra dữ liệu.
+- **DAL:** Truy xuất PostgreSQL và kết nối các dịch vụ bên ngoài.
+
+**Luồng hoạt động:** Client → API → BLL → DAL.
+
+**Tích hợp dịch vụ:** Gemini tạo nội dung và audio, Supabase lưu trữ dữ liệu và file audio, Leaflet hiển thị bản đồ và vị trí địa điểm.
